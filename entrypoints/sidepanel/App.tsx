@@ -109,9 +109,50 @@ export default function App() {
     await updateSavedResults(next);
   }
 
-  function readPage() {
-    setError("Read page wiring is implemented in the next task.");
+  async function readPage() {
+    setError("");
+    setView("chat");
+    const response = await chrome.runtime.sendMessage({
+      type: "EXTRACT_ACTIVE_PAGE",
+      requestId: crypto.randomUUID()
+    });
+
+    if (response?.error) {
+      setError(response.error);
+      return;
+    }
+
+    if (!response?.text) {
+      setError("This page did not return readable content.");
+      return;
+    }
+
+    sendPrompt(
+      [
+        "Read this page and summarize it from a CEO perspective.",
+        "",
+        `Title: ${response.title}`,
+        `URL: ${response.url}`,
+        response.warnings?.length ? `Warnings: ${response.warnings.join(" ")}` : "",
+        "",
+        response.text
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
   }
+
+  useEffect(() => {
+    chrome.runtime
+      .sendMessage({ type: "GET_PENDING_SELECTION_PROMPT", requestId: crypto.randomUUID() })
+      .then((pending) => {
+        if (pending?.prompt) {
+          setView("chat");
+          sendPrompt(pending.prompt);
+        }
+      })
+      .catch(() => undefined);
+  }, [settings?.openaiApiKey]);
 
   if (!settings) {
     return <main className="min-h-screen bg-zinc-950 p-4 text-sm text-zinc-300">Loading...</main>;

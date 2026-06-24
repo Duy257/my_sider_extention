@@ -4,6 +4,19 @@ import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest } from "../src/lib/messaging/types";
 import { getSettings } from "../src/lib/storage";
 
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new Error("No active tab is available.");
+  return tab;
+}
+
+async function injectContentAgent(tabId: number) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["/active-tab-agent.js"]
+  });
+}
+
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -79,6 +92,17 @@ export default defineBackground(() => {
       const value = pendingSelectionPrompt;
       pendingSelectionPrompt = null;
       sendResponse(value);
+      return true;
+    }
+
+    if (message.type === "EXTRACT_ACTIVE_PAGE") {
+      getActiveTab()
+        .then(async (tab) => {
+          await injectContentAgent(tab.id!);
+          const response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
+          sendResponse(response);
+        })
+        .catch((error) => sendResponse({ error: error instanceof Error ? error.message : "Page extraction failed." }));
       return true;
     }
 
