@@ -1,5 +1,4 @@
 import { DEFAULT_OPENAI_MODEL } from "./models";
-import type { AiStreamEvent } from "./types";
 
 export function resolveSelectedModel(modelPreset?: string, customModel?: string): string {
   const custom = customModel?.trim();
@@ -7,15 +6,10 @@ export function resolveSelectedModel(modelPreset?: string, customModel?: string)
   return modelPreset?.trim() || DEFAULT_OPENAI_MODEL;
 }
 
-export function extractResponseTextDelta(event: AiStreamEvent): string {
-  if (event.type !== "response.output_text.delta") return "";
-  return typeof event.delta === "string" ? event.delta : "";
-}
-
-export function mapOpenAIError(error: unknown): string {
+export function mapStreamError(error: unknown): string {
   if (error instanceof DOMException && error.name === "AbortError") return "";
   if (error instanceof TypeError) return "Network error. Check your internet connection.";
-  if (error instanceof SyntaxError) return "Received malformed data from OpenAI.";
+  if (error instanceof SyntaxError) return "Received malformed data from the AI provider.";
   if (error instanceof Error && error.message.trim()) return error.message;
-  return "OpenAI request failed. Check your API key, model, network, and quota.";
+  return "AI request failed. Check your API key, model, network, and quota.";
 }
