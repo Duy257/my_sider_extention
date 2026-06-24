@@ -135,3 +135,45 @@ export async function testConnection(input: {
     return { ok: false, error: msg };
   }
 }
+
+export async function fetchModels(input: {
+  baseUrl: string;
+  apiKey: string;
+}): Promise<{ models: string[] } | { error: string }> {
+  const modelsUrl = input.baseUrl.replace(/\/chat\/completions$/, "/models");
+
+  try {
+    const response = await fetch(modelsUrl, {
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`
+      }
+    });
+
+    if (!response.ok) {
+      let msg = `HTTP ${response.status}.`;
+      try {
+        const errBody = await response.text();
+        const parsed = JSON.parse(errBody);
+        if (parsed?.error?.message) msg = parsed.error.message;
+      } catch {}
+      return { error: msg };
+    }
+
+    const body = await response.json();
+    const models: string[] = (body?.data ?? [])
+      .map((m: { id: string }) => m.id)
+      .filter(Boolean)
+      .sort();
+
+    if (models.length === 0) {
+      return { error: "No models returned by the provider." };
+    }
+
+    return { models };
+  } catch (error) {
+    const msg = error instanceof TypeError
+      ? "Could not reach the provider. Check the URL."
+      : error instanceof Error ? error.message : "Unknown error.";
+    return { error: msg };
+  }
+}
