@@ -152,14 +152,23 @@ export async function fetchModels(input: {
     if (!response.ok) {
       let msg = `HTTP ${response.status}.`;
       try {
-        const errBody = await response.text();
-        const parsed = JSON.parse(errBody);
-        if (parsed?.error?.message) msg = parsed.error.message;
+        const text = await response.text();
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.error?.message) msg = parsed.error.message;
+        } catch {
+          if (text && text.length < 200) msg = text;
+        }
       } catch {}
       return { error: msg };
     }
 
-    const body = await response.json();
+    let body: any;
+    try {
+      body = await response.json();
+    } catch {
+      return { error: "Provider returned a non-JSON response. The /v1/models endpoint may not be supported." };
+    }
     const models: string[] = (body?.data ?? [])
       .map((m: { id: string }) => m.id)
       .filter(Boolean)
