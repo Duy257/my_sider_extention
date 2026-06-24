@@ -115,15 +115,25 @@ export async function testConnection(input: {
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}.`;
       try {
-        const errorBody = await response.text();
-        const parsed = JSON.parse(errorBody);
-        if (parsed?.error?.message) errorMessage = parsed.error.message;
+        const text = await response.text();
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.error?.message) errorMessage = parsed.error.message;
+        } catch {
+          if (text && text.length < 200) errorMessage = text;
+        }
       } catch {}
       return { ok: false, error: errorMessage };
     }
 
-    const body = await response.json();
-    if (!body?.choices?.[0]?.message?.content) {
+    let body: any;
+    try {
+      body = await response.json();
+    } catch {
+      return { ok: false, error: "Provider returned a non-JSON response. Check the Base URL." };
+    }
+
+    if (!body?.choices?.[0]?.message) {
       return { ok: false, error: "Provider returned an unexpected response format." };
     }
 

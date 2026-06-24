@@ -42,9 +42,11 @@ export default function App() {
       setPrompts(loadedPrompts);
       setSavedResultsState(loadedSaved);
     });
+    chrome.runtime.sendMessage({ type: "ACTIVATE_ACTIVE_TAB_AGENT", requestId: crypto.randomUUID() }).catch(() => undefined);
   }, []);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const sendPromptRef = useRef(sendPrompt);
   async function updateSettings(next: Settings) {
     setSettings(next);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -120,13 +122,30 @@ export default function App() {
       }
     });
 
+    const model = settings.provider === "custom"
+      ? (settings.customProvider?.model || "")
+      : (settings.modelPreset || "gpt-5.4-mini");
+
     port.postMessage({
       type: "AI_CHAT_REQUEST",
       requestId,
       messages: buildUserChatMessages(text),
-      model: settings.modelPreset || "gpt-5.4-mini"
+      model
     });
   }
+
+  sendPromptRef.current = sendPrompt;
+
+  useEffect(() => {
+    function handleMessage(msg: { type: string; prompt?: string }) {
+      if (msg.type === "FORWARD_SELECTION_ACTION" && msg.prompt) {
+        setView("chat");
+        sendPromptRef.current(msg.prompt);
+      }
+    }
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, []);
 
   async function saveMessage(item: ChatItem) {
     const newResult: SavedResult = {

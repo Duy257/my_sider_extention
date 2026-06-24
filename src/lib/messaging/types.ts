@@ -23,6 +23,12 @@ export type ExtensionMessage =
       baseUrl: string;
       apiKey: string;
       model: string;
+    }
+  | {
+      type: "FORWARD_SELECTION_ACTION";
+      requestId: string;
+      prompt: string;
+      title: string;
     };
 
 export type AiPortRequest = {

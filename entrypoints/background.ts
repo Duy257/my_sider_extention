@@ -111,6 +111,14 @@ export default defineBackground(() => {
   const pendingSelectionPrompts: { requestId: string; prompt: string; title: string }[] = [];
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "ACTIVATE_ACTIVE_TAB_AGENT") {
+      getActiveTab()
+        .then((tab) => injectContentAgent(tab.id!))
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: String(error) }));
+      return true;
+    }
+
     if (message.type === "TEST_CONNECTION") {
       testConnection({
         baseUrl: message.baseUrl,
@@ -131,6 +139,12 @@ export default defineBackground(() => {
           console.warn("Failed to open side panel:", err)
         );
       }
+      chrome.runtime.sendMessage({
+        type: "FORWARD_SELECTION_ACTION",
+        requestId: message.requestId,
+        prompt: message.prompt,
+        title: message.title
+      }).catch(() => undefined);
       sendResponse({ ok: true });
       return true;
     }
