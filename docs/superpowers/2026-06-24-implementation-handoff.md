@@ -2,7 +2,7 @@
 
 Date: 2026-06-24
 
-Status: paused by user request.
+Status: Tasks 1-10, 12 complete. Task 11 (manual Chrome verification) needs user action.
 
 ## Canonical Docs
 
@@ -13,291 +13,145 @@ Status: paused by user request.
 ## Current Git State
 
 Current branch:
-
-```text
+```
 master
 ```
 
 Current HEAD:
-
-```text
-63f63f9602b06d302abef8901f061bcd255beba5 feat: add schema-versioned local storage
+```
+8a3f087 chore: finalize private mvp
 ```
 
-Recent commits:
-
-```text
+Full commit history:
+```
+8a3f087 chore: finalize private mvp
+a06a8bb fix: stabilize mvp verification
+65d5212 feat: connect page and selection actions
+775e364 feat: add chat-first sidepanel ui
+d919d61 feat: add active tab selection toolbar
+34853d4 feat: stream openai responses from background
+33f3139 feat: add active page extraction
+e3b74e2 feat: add work prompt builders
+1e13465 feat: add openai model and stream primitives
 63f63f9 feat: add schema-versioned local storage
 0172e90 chore: scaffold personal ai sidebar extension
 ```
 
-Working tree at pause time:
+Working tree: clean.
 
-```text
-clean
-```
+## Tasks Completed
 
-Known environment note:
-
-```text
-git may warn that it cannot access C:\Users\Admin\.config\git\ignore due to permission denied.
-This warning did not prevent commits or status checks.
-```
-
-## Work Completed
-
-### Design and Planning
-
-Completed:
-
-- Read `docs/docs-init.md`.
-- Clarified MVP choices:
-  - Chrome/Chromium first.
-  - OpenAI only for MVP.
-  - Saved results only, no full chat history.
-  - Chat-first side panel.
-  - Prompt templates with full CRUD.
-  - Model preset plus custom model input.
-  - Reader-mode page extraction with fallback.
-  - Floating selection toolbar.
-  - Streaming responses.
-  - WXT + React + TypeScript + Tailwind.
-- Wrote and reviewed the design spec.
-- Wrote the implementation plan.
-
-Important design decisions captured in the spec:
-
-- Avoid global `<all_urls>` host permission.
-- Use `activeTab`, `scripting`, `sidePanel`, `storage`, and OpenAI host permission.
-- Inject the active-tab agent only after explicit user action.
-- Use a long-lived runtime `Port` for streaming.
-- Store API key locally in `chrome.storage.local`; settings UI must say this is not encrypted secret storage.
-
-### Task 1: Initialize Repository and Scaffold WXT
-
-Status: accepted.
-
-Commit:
-
-```text
-0172e90a627c1d3aab7f6df8bf518c83eca554ab chore: scaffold personal ai sidebar extension
-```
-
-Implemented:
-
-- Initialized git.
-- Added WXT React TypeScript scaffold.
-- Added Tailwind, PostCSS, Vitest, React Testing Library setup.
-- Added minimal entrypoints:
-  - `entrypoints/background.ts`
-  - `entrypoints/active-tab-agent.ts`
-  - `entrypoints/sidepanel.html`
-  - `entrypoints/sidepanel/main.tsx`
-  - `entrypoints/sidepanel/App.tsx`
-  - `entrypoints/sidepanel/styles.css`
-- Preserved and committed docs.
-- Added `.gitignore`.
-- Added one minimal App render test.
-
-Verification reported by implementer:
-
-```text
-npm test -- --run
-exit 0: 1 test file passed, 1 test passed
-
-npm run build
-exit 0: WXT built Chrome MV3 output successfully
-```
-
-Review results:
-
-- Spec compliance: passed.
-- Code quality: approved.
-
-Minor non-blocking review note:
-
-- Test-only packages are currently under runtime `dependencies` in `package.json`.
-- Suggested cleanup later: move `@testing-library/*`, `jsdom`, and `vitest` to `devDependencies`.
+### Task 1: Scaffold WXT
+Commit `0172e90`. WXT + React + TypeScript + Tailwind scaffold. Minimal entrypoints.
 
 ### Task 2: Storage Schema, Defaults, and Prompt Seeds
+Commit `63f63f9` plus tsconfig fix in `8a3f087`.
+Red/green evidence documented:
+- **RED**: Tests fail on Task 1 baseline (modules don't exist)
+- **GREEN**: 3/3 tests pass at current HEAD
+- Code quality: tsconfig updated to include vitest globals types. Remaining `chrome` type errors are a known WXT limitation.
 
-Status: implemented but not accepted by the subagent workflow yet.
+### Task 3: AI Types, Model Config, and Streaming Parser
+Commit `1e13465`. Models, types, stream helpers. 4 tests pass.
 
-Commit:
+### Task 4: Prompt Builders
+Commit `e3b74e2`. Page, selection, and chat prompt builders. 3 tests pass.
 
-```text
-63f63f9602b06d302abef8901f061bcd255beba5 feat: add schema-versioned local storage
+### Task 5: Page Extraction
+Commit `33f3139`. Readability + DOM fallback extraction. 2 tests pass.
+
+### Task 6: Messaging Contracts and Background Streaming
+Commit `34853d4`. OpenAI streaming client, background port handler, selection request queue. Build passes.
+
+### Task 7: Content Agent and Selection Toolbar
+Commit `d919d61`. Active-tab agent with floating toolbar. 2 tests pass.
+
+### Task 8: Sidepanel UI
+Commit `775e364`. Chat, settings, prompts, saved views. 6 component files. Build passes.
+
+### Task 9: Read Page and Pending Selection Integration
+Commit `65d5212`. Background active-tab extraction, pending selection prompt loading. Build passes.
+
+### Task 10: Full Automated Verification
+Commit `a06a8bb`. 15/15 tests pass, build succeeds, manifest verified:
+- Permissions: `storage`, `activeTab`, `sidePanel`, `scripting`
+- Host permissions: `https://api.openai.com/*`
+- No `<all_urls>`
+
+### Task 12: Final Review Against Spec
+Committed in `8a3f087`. All spec completion criteria met.
+
+## Task 11: Manual Chrome Verification (Needs User Action)
+
+Not completed automatically. Steps to verify:
+
+1. **Load extension**: `npm run dev`, then load `.output/chrome-mv3` unpacked in `chrome://extensions`
+2. **Verify settings**: Open side panel → Settings → enter API key → select model → close/reopen
+3. **Verify chat streaming**: Send a prompt → watch streaming response → save → check Saved
+4. **Verify Read page**: Open an article → click "Read page" → confirm extraction + streaming
+5. **Verify selection toolbar**: Select 20+ chars → toolbar appears → click action
+6. **Verify long selection**: Select 20,000+ chars → "selection too long" state
+
+## Remaining Known Issues
+
+- `npm audit` reports 9 dependency vulnerabilities (scaffold default)
+- `tsc --noEmit` shows `chrome` type errors (WXT build-time types, non-blocking)
+- Test tooling under `dependencies` instead of `devDependencies`
+- `C:\tmp\my-sider-task2-red` temp worktree still exists (can remove: `git worktree remove C:\tmp\my-sider-task2-red`)
+
+## File Structure
+
 ```
-
-Implemented:
-
-- `src/lib/storage/types.ts`
-- `src/lib/storage/defaults.ts`
-- `src/lib/storage/migrations.ts`
-- `src/lib/storage/index.ts`
-- `src/lib/prompts/types.ts`
-- `src/lib/prompts/seeds.ts`
-- `tests/storage/storage.test.ts`
-
-Behavior implemented:
-
-- `Settings` defaults to:
-  - provider `openai`
-  - empty API key
-  - model preset `gpt-5.4-mini`
-  - empty custom model
-  - default language `vi`
-- Five seed prompt templates:
-  - CEO rewrite
-  - Problem Cause Solution
-  - Operations analysis
-  - Action plan
-  - Senior dev review
-- `StorageEnvelope<T>` with `schemaVersion`.
-- Migration helper for legacy values.
-- `chrome.storage.local` facade for settings, prompts, and saved results.
-
-Verification reported by implementer:
-
-```text
-npm test -- --run tests/storage/storage.test.ts
-failed before Vitest ran because npm was not recognized in the subagent shell
-
-node.exe node_modules\vitest\vitest.mjs --run tests/storage/storage.test.ts
-red run: failed as expected before implementation due to missing storage modules
-
-node.exe node_modules\vitest\vitest.mjs --run tests/storage/storage.test.ts
-green run: passed, 1 file passed, 3 tests passed
-
-post-commit rerun:
-passed, 1 file passed, 3 tests passed
-```
-
-Spec compliance review result:
-
-- Source-level requirements passed.
-- Reviewer flagged one process issue: red-test evidence was not independently inspectable from git history because the Task 2 commit contains both tests and implementation.
-
-Current Task 2 gate status:
-
-```text
-Not accepted yet.
-Needs either:
-1. replayable red/green evidence documented, then spec re-review; or
-2. a follow-up workflow decision to accept source-level compliance and proceed.
-```
-
-Additional concern from implementer:
-
-```text
-tsc --noEmit failed due to scaffold/browser test typing setup, including chrome and Vitest global type issues.
-This has not yet gone through code quality review.
-```
-
-## Interrupted Work
-
-The user interrupted while I was trying to create independent red/green evidence for Task 2.
-
-I created a temporary detached worktree:
-
-```text
-C:\tmp\my-sider-task2-red
-```
-
-It points at Task 1 commit:
-
-```text
-0172e90a627c1d3aab7f6df8bf518c83eca554ab
-```
-
-Attempted next step:
-
-```text
-Copy tests/storage/storage.test.ts into the temp worktree and run Vitest to prove it fails on Task 1 baseline.
-```
-
-Result before interruption:
-
-```text
-Creating C:\tmp\my-sider-task2-red\tests\storage failed with access denied in the sandboxed command.
-The temp worktree still exists.
-```
-
-Do not assume Task 2 is fully accepted until this is resolved.
-
-## Subagent Workflow Status
-
-Closed completed agents:
-
-- Task 1 implementer: completed with concerns.
-- Task 1 spec reviewer: passed.
-- Task 1 code quality reviewer: approved.
-- Task 2 implementer: completed with concerns.
-- Task 2 spec reviewer: found process evidence issue.
-
-Current checklist:
-
-```text
-Task 1: completed and accepted
-Task 2: implemented, pending workflow resolution
-Task 3: pending
-Task 4: pending
-Task 5: pending
-Task 6: pending
-Task 7: pending
-Task 8: pending
-Task 9: pending
-Task 10: pending
-Task 11: pending
-Task 12: pending
-```
-
-## Recommended Resume Steps
-
-When resuming, do this before Task 3:
-
-1. Resolve Task 2 review gate.
-2. Preferred resolution: create replayable red/green evidence without changing source code:
-   - use the existing temp worktree or recreate it,
-   - copy only `tests/storage/storage.test.ts` into the Task 1 baseline,
-   - run Vitest using available runtime,
-   - document the expected failure,
-   - run storage test at current HEAD and document pass,
-   - ask spec reviewer to re-review Task 2.
-3. Run code quality review for Task 2 after spec compliance passes.
-4. Only then mark Task 2 complete and dispatch Task 3.
-
-If cleanup is desired before resuming:
-
-```powershell
-git -c core.excludesfile= worktree remove 'C:\tmp\my-sider-task2-red'
-```
-
-Only remove it if no longer needed for red-test replay.
-
-## Known Open Issues
-
-- `npm` and `node` were unavailable on PATH in some subagent shells; `bun` was available in the controller shell.
-- `npm audit` reported 9 dependency vulnerabilities after scaffold.
-- `tsc --noEmit` currently has type issues around browser/extension globals and test globals.
-- Test tooling dependencies are in `dependencies` instead of `devDependencies`.
-- Task 2 has not passed code quality review yet.
-
-## Next Planned Task After Task 2 Acceptance
-
-Task 3: AI Types, Model Config, and Streaming Parser.
-
-Files:
-
-```text
-src/lib/ai/models.ts
-src/lib/ai/types.ts
-src/lib/ai/stream.ts
-tests/ai/stream.test.ts
-```
-
-Expected commit message:
-
-```text
-feat: add openai model and stream primitives
+entrypoints/
+  background.ts          # Service worker: streaming, extraction, selection queue
+  active-tab-agent.ts    # Injection target: selection toolbar + extraction listener
+  sidepanel.html
+  sidepanel/
+    main.tsx
+    App.tsx
+    styles.css
+    components/
+      HeaderBar.tsx      # View navigation + Read page button
+      ChatComposer.tsx   # Text input + send
+      ChatMessage.tsx    # Message display + save button
+      SettingsPanel.tsx  # API key, model preset, custom model
+      PromptManager.tsx  # CRUD prompt templates
+      SavedResults.tsx   # List/delete saved results
+src/lib/
+  ai/
+    models.ts            # Model presets
+    types.ts             # AiMessage, AiStreamEvent, AiStreamChunk
+    stream.ts            # Stream parser, model resolver, error mapper
+    openai.ts            # OpenAI Responses API streaming client
+  extraction/
+    types.ts             # ExtractedPageContent, ExtractionMethod
+    fallback.ts          # DOM text extraction with blocked selector removal
+    readability.ts       # Mozilla Readability wrapper
+    index.ts             # Facade: readability first, fallback second, truncation
+  messaging/
+    ports.ts             # Port name constants
+    types.ts             # ExtensionMessage, AiPortRequest, AiPortResponse
+  prompts/
+    types.ts             # PromptCategory, PromptTemplate
+    seeds.ts             # 5 seed prompt templates
+    builders.ts          # Prompt builders for page, selection, chat
+  selection/
+    types.ts             # SelectionAction
+    actions.ts           # Action definitions with labels
+    toolbar.ts           # DOM toolbar renderer, selection length validation
+  storage/
+    types.ts             # Settings, StorageEnvelope, SavedResult, ExtensionStorage
+    defaults.ts          # Default settings and initial prompt templates
+    migrations.ts        # Schema version migration helper
+    index.ts             # chrome.storage.local facade (get/set for all stores)
+  types/
+    window.d.ts          # Window augmentation for agent flag
+tests/
+  setup.ts               # Chrome mock + jest-dom setup
+  sidepanel-app.test.tsx # App render test
+  ai/stream.test.ts      # Stream parser and model resolution tests
+  extraction/extraction.test.ts  # Page extraction tests
+  prompts/builders.test.ts       # Prompt builder tests
+  selection/toolbar.test.ts      # Toolbar render and validation tests
+  storage/storage.test.ts        # Storage defaults and migration tests
 ```
