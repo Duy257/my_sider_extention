@@ -13,6 +13,9 @@ export function extractResponseTextDelta(event: AiStreamEvent): string {
 }
 
 export function mapOpenAIError(error: unknown): string {
+  if (error instanceof DOMException && error.name === "AbortError") return "";
+  if (error instanceof TypeError) return "Network error. Check your internet connection.";
+  if (error instanceof SyntaxError) return "Received malformed data from OpenAI.";
   if (error instanceof Error && error.message.trim()) return error.message;
   return "OpenAI request failed. Check your API key, model, network, and quota.";
 }

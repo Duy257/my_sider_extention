@@ -1,6 +1,6 @@
 import { extractPageContent } from "../src/lib/extraction";
 import { buildSelectionPrompt } from "../src/lib/prompts/builders";
-import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar } from "../src/lib/selection/toolbar";
+import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../src/lib/selection/toolbar";
 import type { SelectionAction } from "../src/lib/selection/types";
 
 export default defineUnlistedScript(() => {
@@ -8,10 +8,15 @@ export default defineUnlistedScript(() => {
   window.__personalAiSidebarAgentInstalled = true;
 
   let toolbar: HTMLElement | null = null;
+  let tooLongIndicator: HTMLElement | null = null;
+  let selectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let ignoreNextSelectionChange = false;
 
   function removeToolbar() {
     toolbar?.remove();
     toolbar = null;
+    tooLongIndicator?.remove();
+    tooLongIndicator = null;
   }
 
   function currentSelectionText(): string {
@@ -21,9 +26,19 @@ export default defineUnlistedScript(() => {
   function selectionPosition(): { top: number; left: number } {
     const selection = window.getSelection();
     const rect = selection?.rangeCount ? selection.getRangeAt(0).getBoundingClientRect() : null;
+    if (!rect) return { top: 8, left: 8 };
+
+    const aboveSpace = rect.top;
+    const needed = 42 + 8;
+    if (aboveSpace >= needed) {
+      return {
+        top: Math.max(8, rect.top - 42),
+        left: Math.max(8, rect.left)
+      };
+    }
     return {
-      top: Math.max(8, rect ? rect.top - 42 : 8),
-      left: Math.max(8, rect ? rect.left : 8)
+      top: Math.max(8, rect.bottom + 8),
+      left: Math.max(8, rect.left)
     };
   }
 
@@ -40,23 +55,30 @@ export default defineUnlistedScript(() => {
   }
 
   document.addEventListener("selectionchange", () => {
-    window.setTimeout(() => {
+    if (ignoreNextSelectionChange) {
+      ignoreNextSelectionChange = false;
+      return;
+    }
+
+    if (selectionTimeoutId !== null) clearTimeout(selectionTimeoutId);
+
+    selectionTimeoutId = window.setTimeout(() => {
+      selectionTimeoutId = null;
       removeToolbar();
       const text = currentSelectionText();
       if (!text) return;
 
       if (isSelectionTooLong(text)) {
-        chrome.runtime.sendMessage({
-          type: "SELECTION_TOO_LONG",
-          requestId: crypto.randomUUID(),
-          length: text.length
-        });
+        const pos = selectionPosition();
+        tooLongIndicator = renderTooLongIndicator(pos);
+        document.body.appendChild(tooLongIndicator);
         return;
       }
 
       if (!isSelectionLengthAllowed(text)) return;
 
       toolbar = renderSelectionToolbar(selectionPosition(), (action) => {
+        ignoreNextSelectionChange = true;
         sendSelectionAction(action, text);
         removeToolbar();
       });
@@ -66,7 +88,11 @@ export default defineUnlistedScript(() => {
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "EXTRACT_PAGE_CONTENT") {
-      sendResponse(extractPageContent(window.location.href));
+      try {
+        sendResponse(extractPageContent(window.location.href));
+      } catch (e) {
+        sendResponse({ error: String(e) });
+      }
     }
     return true;
   });

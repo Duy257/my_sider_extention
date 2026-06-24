@@ -4,7 +4,7 @@ import type { Settings } from "./types";
 export function createDefaultSettings(now = new Date().toISOString()): Settings {
   return {
     provider: "openai",
-    openaiApiKey: "",
+    openaiApiKey: undefined,
     modelPreset: "gpt-5.4-mini",
     customModel: "",
     defaultLanguage: "vi",

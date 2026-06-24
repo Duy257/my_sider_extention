@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildUserChatMessages } from "../../src/lib/prompts/builders";
 import { getPromptTemplates, getSavedResults, getSettings, savePromptTemplates, saveSavedResults, saveSettings } from "../../src/lib/storage";
 import type { PromptTemplate } from "../../src/lib/prompts/types";
@@ -26,6 +26,7 @@ export default function App() {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
+  const [readingPage, setReadingPage] = useState(false);
 
   const missingApiKey = useMemo(() => !settings?.openaiApiKey?.trim(), [settings]);
 
@@ -37,10 +38,20 @@ export default function App() {
     });
   }, []);
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   async function updateSettings(next: Settings) {
     setSettings(next);
-    await saveSettings(next);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      saveSettings(next).catch(() => undefined);
+    }, 300);
   }
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   async function updatePrompts(next: PromptTemplate[]) {
     setPrompts(next);
@@ -54,6 +65,7 @@ export default function App() {
 
   function sendPrompt(text: string) {
     if (!settings) return;
+    if (streaming) return;
     setError("");
     setStreaming(true);
 
@@ -65,7 +77,22 @@ export default function App() {
       { id: assistantId, role: "assistant", content: "" }
     ]);
 
-    const port = chrome.runtime.connect({ name: AI_STREAM_PORT });
+    let port: chrome.runtime.Port;
+    try {
+      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
+    } catch {
+      setStreaming(false);
+      setError("Failed to connect to AI service.");
+      return;
+    }
+
+    port.onDisconnect.addListener(() => {
+      setStreaming(false);
+      if (chrome.runtime.lastError) {
+        setError(chrome.runtime.lastError.message || "Connection lost.");
+      }
+    });
+
     port.onMessage.addListener((message: AiPortResponse) => {
       if (message.requestId !== requestId) return;
 
@@ -96,50 +123,58 @@ export default function App() {
   }
 
   async function saveMessage(item: ChatItem) {
-    const next = [
-      {
-        id: crypto.randomUUID(),
-        title: item.content.slice(0, 60) || "Saved response",
-        sourceType: "chat" as const,
-        outputMarkdown: item.content,
-        createdAt: new Date().toISOString()
-      },
-      ...savedResults
-    ];
-    await updateSavedResults(next);
+    const newResult: SavedResult = {
+      id: crypto.randomUUID(),
+      title: item.content.slice(0, 60) || "Saved response",
+      sourceType: "chat" as const,
+      outputMarkdown: item.content,
+      createdAt: new Date().toISOString()
+    };
+    setSavedResultsState((prev) => {
+      const updated = [newResult, ...prev];
+      saveSavedResults(updated).catch(() => undefined);
+      return updated;
+    });
   }
 
   async function readPage() {
     setError("");
+    setReadingPage(true);
     setView("chat");
-    const response = await chrome.runtime.sendMessage({
-      type: "EXTRACT_ACTIVE_PAGE",
-      requestId: crypto.randomUUID()
-    });
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "EXTRACT_ACTIVE_PAGE",
+        requestId: crypto.randomUUID()
+      });
 
-    if (response?.error) {
-      setError(response.error);
-      return;
+      if (response?.error) {
+        setError(response.error);
+        return;
+      }
+
+      if (!response?.text) {
+        setError("This page did not return readable content.");
+        return;
+      }
+
+      sendPrompt(
+        [
+          "Read this page and summarize it from a CEO perspective.",
+          "",
+          `Title: ${response.title}`,
+          `URL: ${response.url}`,
+          response.warnings?.length ? `Warnings: ${response.warnings.join(" ")}` : "",
+          "",
+          response.text
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+    } catch {
+      setError("Failed to read page.");
+    } finally {
+      setReadingPage(false);
     }
-
-    if (!response?.text) {
-      setError("This page did not return readable content.");
-      return;
-    }
-
-    sendPrompt(
-      [
-        "Read this page and summarize it from a CEO perspective.",
-        "",
-        `Title: ${response.title}`,
-        `URL: ${response.url}`,
-        response.warnings?.length ? `Warnings: ${response.warnings.join(" ")}` : "",
-        "",
-        response.text
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
   }
 
   useEffect(() => {
@@ -160,7 +195,7 @@ export default function App() {
 
   return (
     <main className="flex min-h-screen flex-col bg-zinc-950 text-zinc-50">
-      <HeaderBar view={view} onViewChange={setView} onReadPage={readPage} />
+      <HeaderBar view={view} onViewChange={setView} onReadPage={readPage} readingPage={readingPage} />
       {error ? <div className="border-b border-red-900 bg-red-950 p-2 text-xs text-red-100">{error}</div> : null}
       {view === "settings" ? <SettingsPanel settings={settings} onChange={updateSettings} /> : null}
       {view === "prompts" ? <PromptManager prompts={prompts} onChange={updatePrompts} /> : null}
@@ -170,7 +205,7 @@ export default function App() {
           {missingApiKey ? (
             <section className="p-3 text-sm text-amber-100">Add your OpenAI API key in Settings before sending requests.</section>
           ) : null}
-          <section className="flex-1 space-y-3 overflow-auto p-3">
+          <section className="flex-1 space-y-3 overflow-auto p-3" aria-live="polite" aria-relevant="additions">
             {messages.length === 0 ? <p className="text-sm text-zinc-400">Ask about the page, selected text, or your work.</p> : null}
             {messages.map((item) => (
               <ChatMessage key={item.id} role={item.role} content={item.content} onSave={item.role === "assistant" ? () => saveMessage(item) : undefined} />

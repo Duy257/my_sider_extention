@@ -33,13 +33,22 @@ export async function streamOpenAIResponse(input: {
     });
 
     if (!response.ok || !response.body) {
-      input.callbacks.onError(`OpenAI request failed with HTTP ${response.status}.`);
+      let errorMessage = `OpenAI request failed with HTTP ${response.status}.`;
+      try {
+        const errorBody = await response.text();
+        const parsed = JSON.parse(errorBody);
+        if (parsed?.error?.message) {
+          errorMessage = parsed.error.message;
+        }
+      } catch {}
+      input.callbacks.onError(errorMessage);
       return;
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let currentEvent = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -51,18 +60,45 @@ export async function streamOpenAIResponse(input: {
 
       for (const rawLine of lines) {
         const line = rawLine.trim();
+
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice("event: ".length);
+          continue;
+        }
+
         if (!line.startsWith("data: ")) continue;
         const data = line.slice("data: ".length);
-        if (data === "[DONE]") continue;
 
-        const event = JSON.parse(data);
-        const delta = extractResponseTextDelta(event);
-        if (delta) input.callbacks.onDelta(delta);
+        if (currentEvent === "response.failed") {
+          let errorMessage = "OpenAI response failed.";
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed?.error?.message) errorMessage = parsed.error.message;
+          } catch {}
+          try { input.callbacks.onError(errorMessage); } catch {}
+          reader.cancel();
+          return;
+        }
+
+        if (currentEvent === "response.output_text.delta") {
+          try {
+            const parsed = JSON.parse(data);
+            const delta = extractResponseTextDelta(parsed);
+            if (delta) {
+              try { input.callbacks.onDelta(delta); } catch {}
+            }
+          } catch {}
+        }
       }
     }
 
-    input.callbacks.onDone();
+    try { input.callbacks.onDone(); } catch {}
   } catch (error) {
-    input.callbacks.onError(mapOpenAIError(error));
+    const mapped = mapOpenAIError(error);
+    if (mapped) {
+      try { input.callbacks.onError(mapped); } catch {}
+    } else {
+      try { input.callbacks.onDone(); } catch {}
+    }
   }
 }

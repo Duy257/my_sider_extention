@@ -10,7 +10,11 @@ async function getActiveTab() {
   return tab;
 }
 
+const injectedTabs = new Set<number>();
+
 async function injectContentAgent(tabId: number) {
+  if (injectedTabs.has(tabId)) return;
+  injectedTabs.add(tabId);
   await chrome.scripting.executeScript({
     target: { tabId },
     files: ["/active-tab-agent.js"]
@@ -22,16 +26,11 @@ export default defineBackground(() => {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   });
 
-  chrome.action.onClicked.addListener(async (tab) => {
-    if (tab.id) {
-      await chrome.sidePanel.open({ tabId: tab.id });
-    }
-  });
-
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== AI_STREAM_PORT) return;
 
     const controller = new AbortController();
+    let busy = false;
 
     port.onDisconnect.addListener(() => {
       controller.abort();
@@ -39,58 +38,75 @@ export default defineBackground(() => {
 
     port.onMessage.addListener(async (message: AiPortRequest) => {
       if (message.type !== "AI_CHAT_REQUEST") return;
+      if (busy) return;
+      busy = true;
 
-      const settings = await getSettings();
-      const apiKey = settings.openaiApiKey?.trim();
+      const send = (msg: Record<string, unknown>) => {
+        try { port.postMessage(msg); } catch {}
+      };
 
-      if (!apiKey) {
-        port.postMessage({
+      try {
+        const settings = await getSettings();
+        const apiKey = settings.openaiApiKey?.trim();
+
+        if (!apiKey) {
+          send({
+            type: "AI_STREAM_ERROR",
+            requestId: message.requestId,
+            message: "Add your OpenAI API key in Settings before sending a request."
+          });
+          return;
+        }
+
+        await streamOpenAIResponse({
+          apiKey,
+          model: resolveSelectedModel(message.model, settings.customModel),
+          messages: message.messages,
+          signal: controller.signal,
+          callbacks: {
+            onDelta: (delta) =>
+              send({ type: "AI_STREAM_CHUNK", requestId: message.requestId, delta }),
+            onDone: () => send({ type: "AI_STREAM_DONE", requestId: message.requestId }),
+            onError: (errorMessage) =>
+              send({
+                type: "AI_STREAM_ERROR",
+                requestId: message.requestId,
+                message: errorMessage
+              })
+          }
+        });
+      } catch (error) {
+        send({
           type: "AI_STREAM_ERROR",
           requestId: message.requestId,
-          message: "Add your OpenAI API key in Settings before sending a request."
+          message: error instanceof Error ? error.message : "Unexpected streaming error."
         });
-        return;
+      } finally {
+        busy = false;
       }
-
-      await streamOpenAIResponse({
-        apiKey,
-        model: resolveSelectedModel(message.model, settings.customModel),
-        messages: message.messages,
-        signal: controller.signal,
-        callbacks: {
-          onDelta: (delta) =>
-            port.postMessage({ type: "AI_STREAM_CHUNK", requestId: message.requestId, delta }),
-          onDone: () => port.postMessage({ type: "AI_STREAM_DONE", requestId: message.requestId }),
-          onError: (errorMessage) =>
-            port.postMessage({
-              type: "AI_STREAM_ERROR",
-              requestId: message.requestId,
-              message: errorMessage
-            })
-        }
-      });
     });
   });
 
-  let pendingSelectionPrompt: { requestId: string; prompt: string; title: string } | null = null;
+  const pendingSelectionPrompts: { requestId: string; prompt: string; title: string }[] = [];
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "SELECTION_ACTION") {
-      pendingSelectionPrompt = {
+      pendingSelectionPrompts.push({
         requestId: message.requestId,
         prompt: message.prompt,
         title: message.title
-      };
+      });
       if (sender.tab?.id) {
-        chrome.sidePanel.open({ tabId: sender.tab.id }).catch(() => undefined);
+        chrome.sidePanel.open({ tabId: sender.tab.id }).catch((err) =>
+          console.warn("Failed to open side panel:", err)
+        );
       }
       sendResponse({ ok: true });
       return true;
     }
 
     if (message.type === "GET_PENDING_SELECTION_PROMPT") {
-      const value = pendingSelectionPrompt;
-      pendingSelectionPrompt = null;
+      const value = pendingSelectionPrompts.shift() ?? null;
       sendResponse(value);
       return true;
     }
@@ -99,8 +115,18 @@ export default defineBackground(() => {
       getActiveTab()
         .then(async (tab) => {
           await injectContentAgent(tab.id!);
-          const response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
-          sendResponse(response);
+          let lastError: unknown;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+              const response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
+              sendResponse(response);
+              return;
+            } catch (err) {
+              lastError = err;
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+          }
+          sendResponse({ error: lastError instanceof Error ? lastError.message : "Content script not ready after retries." });
         })
         .catch((error) => sendResponse({ error: error instanceof Error ? error.message : "Page extraction failed." }));
       return true;

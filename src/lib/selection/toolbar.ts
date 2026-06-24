@@ -13,6 +13,27 @@ export function isSelectionTooLong(text: string): boolean {
   return text.trim().length > MAX_SELECTION_CHARS;
 }
 
+export function renderTooLongIndicator(
+  position: { top: number; left: number }
+): HTMLElement {
+  const el = document.createElement("div");
+  el.dataset.personalAiToolbar = "true";
+  el.style.position = "fixed";
+  el.style.top = `${position.top}px`;
+  el.style.left = `${position.left}px`;
+  el.style.zIndex = "2147483647";
+  el.style.padding = "6px 12px";
+  el.style.border = "1px solid #f59e0b";
+  el.style.borderRadius = "6px";
+  el.style.background = "#18181b";
+  el.style.color = "#fbbf24";
+  el.style.font = "12px system-ui, sans-serif";
+  el.style.boxShadow = "0 8px 24px rgba(0,0,0,0.24)";
+  el.style.whiteSpace = "nowrap";
+  el.textContent = "Selection too long (max 20,000 chars)";
+  return el;
+}
+
 export function renderSelectionToolbar(
   position: { top: number; left: number },
   onAction: (action: SelectionAction) => void

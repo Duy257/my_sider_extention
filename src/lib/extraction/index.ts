@@ -7,7 +7,13 @@ const MAX_PAGE_CONTEXT_CHARS = 40000;
 export function extractPageContent(url = window.location.href): ExtractedPageContent {
   const warnings: string[] = [];
   let method: ExtractionMethod = "readability";
-  let text = extractReadableText(document);
+  let text: string;
+
+  try {
+    text = extractReadableText(document);
+  } catch {
+    text = "";
+  }
 
   if (!text) {
     method = "dom-fallback";

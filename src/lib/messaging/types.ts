@@ -12,7 +12,11 @@ export type ExtensionMessage =
       url: string;
       title: string;
       prompt: string;
-    };
+    }
+  | { type: "GET_PENDING_SELECTION_PROMPT" }
+  | { type: "SELECTION_TOO_LONG"; requestId: string; maxLength: number }
+  | { type: "CONTENT_AGENT_READY" }
+  | { type: "EXTRACT_PAGE_CONTENT" };
 
 export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
@@ -25,3 +29,7 @@ export type AiPortResponse =
   | { type: "AI_STREAM_CHUNK"; requestId: string; delta: string }
   | { type: "AI_STREAM_DONE"; requestId: string }
   | { type: "AI_STREAM_ERROR"; requestId: string; message: string };
+
+export type PageExtractionResponse =
+  | { title: string; content: string; url: string }
+  | { error: string };

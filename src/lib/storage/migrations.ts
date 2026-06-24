@@ -7,8 +7,12 @@ export function migrateStorageEnvelope<T>(
   schemaVersion = CURRENT_SCHEMA_VERSION,
   fallbackData?: T
 ): StorageEnvelope<T> {
-  if (value && typeof value === "object" && "schemaVersion" in value && "data" in value) {
-    return value as StorageEnvelope<T>;
+  if (value !== null && typeof value === "object" && "schemaVersion" in value && "data" in value) {
+    const envelope = value as StorageEnvelope<T>;
+    if (envelope.schemaVersion !== schemaVersion) {
+      return { schemaVersion, data: envelope.data };
+    }
+    return envelope;
   }
 
   if (value === undefined) {
