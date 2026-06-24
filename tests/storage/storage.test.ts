@@ -35,4 +35,19 @@ describe("storage defaults", () => {
     expect(migrated.schemaVersion).toBe(1);
     expect(migrated.data).toEqual({ provider: "openai" });
   });
+
+  it("migrates from schema v1 to v2 preserving openai settings", () => {
+    const v1Data = {
+      provider: "openai",
+      openaiApiKey: "sk-old",
+      modelPreset: "gpt-5.4-mini",
+      customModel: "",
+      defaultLanguage: "vi",
+      updatedAt: "2026-06-24T00:00:00.000Z"
+    };
+    const migrated = migrateStorageEnvelope({ schemaVersion: 1, data: v1Data }, 2);
+
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.data).toEqual(v1Data);
+  });
 });
