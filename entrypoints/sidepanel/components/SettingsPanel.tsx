@@ -67,9 +67,11 @@ export function SettingsPanel(props: {
     setModelError(null);
 
     try {
-      const result = await fetchModels({ baseUrl: cp.baseUrl, apiKey: cp.apiKey });
+      const preset = cp.preset ? getPreset(cp.preset) : undefined;
+      const modelsUrl = preset?.modelsUrl ?? cp.baseUrl.replace(/\/chat\/completions$/, "/models");
+
+      const result = await fetchModels({ modelsUrl, apiKey: cp.apiKey });
       if ("error" in result) {
-        const preset = cp.preset ? getPreset(cp.preset) : undefined;
         if (preset?.knownModels && preset.knownModels.length > 0) {
           setModels(preset.knownModels);
         } else {

@@ -137,10 +137,9 @@ export async function testConnection(input: {
 }
 
 export async function fetchModels(input: {
-  baseUrl: string;
+  modelsUrl: string;
   apiKey: string;
 }): Promise<{ models: string[] } | { error: string }> {
-  const modelsUrl = input.baseUrl.replace(/\/chat\/completions$/, "/models");
 
   try {
     const response = await fetch(modelsUrl, {
