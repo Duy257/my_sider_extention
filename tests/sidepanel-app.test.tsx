@@ -1,9 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import App from "../entrypoints/sidepanel/App";
 
-test("renders the sidebar ready state", () => {
+test("renders the sidebar after settings load", async () => {
   render(<App />);
 
-  expect(screen.getByRole("heading", { name: "Personal AI Sidebar" })).toBeInTheDocument();
-  expect(screen.getByText("Ready.")).toBeInTheDocument();
+  expect(await screen.findByText(/Add your OpenAI API key/)).toBeInTheDocument();
 });
