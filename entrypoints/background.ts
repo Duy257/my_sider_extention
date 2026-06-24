@@ -1,7 +1,8 @@
-import { streamOpenAIResponse } from "../src/lib/ai/openai";
+import { streamChatCompletion, testConnection } from "../src/lib/ai/client";
 import { resolveSelectedModel } from "../src/lib/ai/stream";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest } from "../src/lib/messaging/types";
+import type { Settings } from "../src/lib/storage/types";
 import { getSettings } from "../src/lib/storage";
 
 async function getActiveTab() {
@@ -19,6 +20,33 @@ async function injectContentAgent(tabId: number) {
     target: { tabId },
     files: ["/active-tab-agent.js"]
   });
+}
+
+function buildStreamConfig(settings: Settings) {
+  if (settings.provider === "custom" && settings.customProvider) {
+    const cp = settings.customProvider;
+    if (!cp.apiKey?.trim()) {
+      return { error: "Add your API key in Settings for the custom provider." };
+    }
+    if (!cp.model.trim()) {
+      return { error: "Enter a model name for the custom provider." };
+    }
+    return {
+      baseUrl: cp.baseUrl,
+      apiKey: cp.apiKey.trim(),
+      model: cp.model.trim()
+    };
+  }
+
+  const apiKey = settings.openaiApiKey?.trim();
+  if (!apiKey) {
+    return { error: "Add your OpenAI API key in Settings before sending a request." };
+  }
+  return {
+    baseUrl: "https://api.openai.com/v1/chat/completions",
+    apiKey,
+    model: resolveSelectedModel(settings.modelPreset, settings.customModel)
+  };
 }
 
 export default defineBackground(() => {
@@ -47,20 +75,17 @@ export default defineBackground(() => {
 
       try {
         const settings = await getSettings();
-        const apiKey = settings.openaiApiKey?.trim();
+        const config = buildStreamConfig(settings);
 
-        if (!apiKey) {
-          send({
-            type: "AI_STREAM_ERROR",
-            requestId: message.requestId,
-            message: "Add your OpenAI API key in Settings before sending a request."
-          });
+        if ("error" in config) {
+          send({ type: "AI_STREAM_ERROR", requestId: message.requestId, message: config.error });
           return;
         }
 
-        await streamOpenAIResponse({
-          apiKey,
-          model: resolveSelectedModel(message.model, settings.customModel),
+        await streamChatCompletion({
+          baseUrl: config.baseUrl,
+          apiKey: config.apiKey,
+          model: config.model,
           messages: message.messages,
           signal: controller.signal,
           callbacks: {
@@ -68,11 +93,7 @@ export default defineBackground(() => {
               send({ type: "AI_STREAM_CHUNK", requestId: message.requestId, delta }),
             onDone: () => send({ type: "AI_STREAM_DONE", requestId: message.requestId }),
             onError: (errorMessage) =>
-              send({
-                type: "AI_STREAM_ERROR",
-                requestId: message.requestId,
-                message: errorMessage
-              })
+              send({ type: "AI_STREAM_ERROR", requestId: message.requestId, message: errorMessage })
           }
         });
       } catch (error) {
@@ -90,6 +111,15 @@ export default defineBackground(() => {
   const pendingSelectionPrompts: { requestId: string; prompt: string; title: string }[] = [];
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "TEST_CONNECTION") {
+      testConnection({
+        baseUrl: message.baseUrl,
+        apiKey: message.apiKey,
+        model: message.model
+      }).then(sendResponse);
+      return true;
+    }
+
     if (message.type === "SELECTION_ACTION") {
       pendingSelectionPrompts.push({
         requestId: message.requestId,
