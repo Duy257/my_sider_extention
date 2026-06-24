@@ -1,12 +1,19 @@
 import type { PromptTemplate } from "../prompts/types";
 
-export type AiProvider = "openai";
+export type AiProvider = "openai" | "custom";
+
+export type CustomProviderConfig = {
+  baseUrl: string;
+  apiKey?: string;
+  model: string;
+};
 
 export type Settings = {
   provider: AiProvider;
   openaiApiKey?: string;
   modelPreset?: string;
   customModel?: string;
+  customProvider?: CustomProviderConfig;
   defaultLanguage: "vi" | "en";
   updatedAt: string;
 };

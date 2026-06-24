@@ -3,6 +3,13 @@ import { createDefaultSettings, createInitialPromptTemplates } from "../../src/l
 import { migrateStorageEnvelope } from "../../src/lib/storage/migrations";
 
 describe("storage defaults", () => {
+  it("creates custom provider settings with undefined customProvider by default", () => {
+    const settings = createDefaultSettings("2026-06-24T00:00:00.000Z");
+
+    expect(settings.provider).toBe("openai");
+    expect(settings.customProvider).toBeUndefined();
+  });
+
   it("creates OpenAI settings with gpt-5.4-mini as default preset", () => {
     const settings = createDefaultSettings("2026-06-24T00:00:00.000Z");
 
