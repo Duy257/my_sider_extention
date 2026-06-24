@@ -3,6 +3,7 @@ import type { PromptTemplate } from "../prompts/types";
 export type AiProvider = "openai" | "custom";
 
 export type CustomProviderConfig = {
+  preset?: string;
   baseUrl: string;
   apiKey?: string;
   model: string;

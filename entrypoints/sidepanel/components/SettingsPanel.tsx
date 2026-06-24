@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { OPENAI_MODEL_PRESETS } from "../../../src/lib/ai/models";
+import { PROVIDER_PRESETS, getPreset } from "../../../src/lib/ai/providers";
 import type { Settings, CustomProviderConfig } from "../../../src/lib/storage/types";
 import type { TestConnectionResponse } from "../../../src/lib/messaging/types";
 
@@ -108,6 +109,32 @@ export function SettingsPanel(props: {
         </>
       ) : (
         <>
+          <label className="block text-xs text-zinc-400">
+            Provider Preset
+            <select
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              value={props.settings.customProvider?.preset ?? "custom"}
+              onChange={(e) => {
+                const presetId = e.target.value;
+                const preset = getPreset(presetId);
+                const current = props.settings.customProvider ?? { baseUrl: "", apiKey: "", model: "" };
+                props.onChange({
+                  ...props.settings,
+                  customProvider: {
+                    ...current,
+                    preset: presetId,
+                    baseUrl: preset?.baseUrl ?? current.baseUrl,
+                    model: preset?.defaultModel ?? current.model
+                  },
+                  updatedAt: new Date().toISOString()
+                });
+              }}
+            >
+              {PROVIDER_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+          </label>
           <label className="block text-xs text-zinc-400">
             Base URL
             <input
