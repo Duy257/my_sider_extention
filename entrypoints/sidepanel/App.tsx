@@ -28,7 +28,13 @@ export default function App() {
   const [error, setError] = useState("");
   const [readingPage, setReadingPage] = useState(false);
 
-  const missingApiKey = useMemo(() => !settings?.openaiApiKey?.trim(), [settings]);
+  const missingApiKey = useMemo(() => {
+    if (!settings) return true;
+    if (settings.provider === "custom") {
+      return !settings.customProvider?.apiKey?.trim();
+    }
+    return !settings.openaiApiKey?.trim();
+  }, [settings]);
 
   useEffect(() => {
     Promise.all([getSettings(), getPromptTemplates(), getSavedResults()]).then(([loadedSettings, loadedPrompts, loadedSaved]) => {
@@ -203,7 +209,11 @@ export default function App() {
       {view === "chat" ? (
         <>
           {missingApiKey ? (
-            <section className="p-3 text-sm text-amber-100">Add your OpenAI API key in Settings before sending requests.</section>
+            <section className="p-3 text-sm text-amber-100">
+              {settings?.provider === "custom"
+                ? "Add your API key in Settings for the custom provider before sending requests."
+                : "Add your OpenAI API key in Settings before sending requests."}
+            </section>
           ) : null}
           <section className="flex-1 space-y-3 overflow-auto p-3" aria-live="polite" aria-relevant="additions">
             {messages.length === 0 ? <p className="text-sm text-zinc-400">Ask about the page, selected text, or your work.</p> : null}
