@@ -1,44 +1,156 @@
+import { useState } from "react";
 import { OPENAI_MODEL_PRESETS } from "../../../src/lib/ai/models";
-import type { Settings } from "../../../src/lib/storage/types";
+import type { Settings, CustomProviderConfig } from "../../../src/lib/storage/types";
+import type { TestConnectionResponse } from "../../../src/lib/messaging/types";
 
 export function SettingsPanel(props: {
   settings: Settings;
   onChange: (settings: Settings) => void;
 }) {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  function updateField<K extends keyof Settings>(key: K, value: Settings[K]) {
+    props.onChange({ ...props.settings, [key]: value, updatedAt: new Date().toISOString() });
+  }
+
+  function updateCustomProvider(field: keyof CustomProviderConfig, value: string) {
+    const current = props.settings.customProvider ?? { baseUrl: "", apiKey: "", model: "" };
+    props.onChange({
+      ...props.settings,
+      customProvider: { ...current, [field]: value },
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  async function handleTestConnection() {
+    const cp = props.settings.customProvider;
+    if (!cp?.baseUrl || !cp?.apiKey || !cp?.model) {
+      setTestResult({ ok: false, message: "Fill in Base URL, API Key, and Model first." });
+      return;
+    }
+
+    setTesting(true);
+    setTestResult(null);
+
+    try {
+      const response: TestConnectionResponse = await chrome.runtime.sendMessage({
+        type: "TEST_CONNECTION",
+        requestId: crypto.randomUUID(),
+        baseUrl: cp.baseUrl,
+        apiKey: cp.apiKey,
+        model: cp.model
+      });
+
+      if (response.ok) {
+        setTestResult({ ok: true, message: "Connected successfully." });
+      } else {
+        setTestResult({ ok: false, message: response.error });
+      }
+    } catch {
+      setTestResult({ ok: false, message: "Failed to send test request." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <section className="space-y-3 p-3">
-      <p className="rounded border border-amber-700 bg-amber-950 p-2 text-xs text-amber-100">
-        Your API key is stored locally in Chrome extension storage for this private MVP. It is not encrypted secret storage.
-      </p>
       <label className="block text-xs text-zinc-400">
-        OpenAI API key
-        <input
-          className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
-          type="password"
-          value={props.settings.openaiApiKey ?? ""}
-          onChange={(event) => props.onChange({ ...props.settings, openaiApiKey: event.target.value, updatedAt: new Date().toISOString() })}
-        />
-      </label>
-      <label className="block text-xs text-zinc-400">
-        Model preset
+        AI Provider
         <select
           className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
-          value={props.settings.modelPreset}
-          onChange={(event) => props.onChange({ ...props.settings, modelPreset: event.target.value, updatedAt: new Date().toISOString() })}
+          value={props.settings.provider}
+          onChange={(e) => {
+            const provider = e.target.value as "openai" | "custom";
+            props.onChange({ ...props.settings, provider, updatedAt: new Date().toISOString() });
+          }}
         >
-          {OPENAI_MODEL_PRESETS.map((model) => (
-            <option key={model.id} value={model.id}>{model.label}</option>
-          ))}
+          <option value="openai">OpenAI</option>
+          <option value="custom">Custom Provider</option>
         </select>
       </label>
-      <label className="block text-xs text-zinc-400">
-        Custom model
-        <input
-          className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
-          value={props.settings.customModel ?? ""}
-          onChange={(event) => props.onChange({ ...props.settings, customModel: event.target.value, updatedAt: new Date().toISOString() })}
-        />
-      </label>
+
+      {props.settings.provider === "openai" ? (
+        <>
+          <p className="rounded border border-amber-700 bg-amber-950 p-2 text-xs text-amber-100">
+            Your API key is stored locally in Chrome extension storage for this private MVP. It is not encrypted secret storage.
+          </p>
+          <label className="block text-xs text-zinc-400">
+            OpenAI API key
+            <input
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              type="password"
+              value={props.settings.openaiApiKey ?? ""}
+              onChange={(e) => updateField("openaiApiKey", e.target.value)}
+            />
+          </label>
+          <label className="block text-xs text-zinc-400">
+            Model preset
+            <select
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              value={props.settings.modelPreset}
+              onChange={(e) => updateField("modelPreset", e.target.value)}
+            >
+              {OPENAI_MODEL_PRESETS.map((model) => (
+                <option key={model.id} value={model.id}>{model.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs text-zinc-400">
+            Custom model
+            <input
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              value={props.settings.customModel ?? ""}
+              onChange={(e) => updateField("customModel", e.target.value)}
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <label className="block text-xs text-zinc-400">
+            Base URL
+            <input
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              placeholder="https://api.opencode.ai/v1/chat/completions"
+              value={props.settings.customProvider?.baseUrl ?? ""}
+              onChange={(e) => updateCustomProvider("baseUrl", e.target.value)}
+            />
+          </label>
+          <label className="block text-xs text-zinc-400">
+            API Key
+            <input
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              type="password"
+              value={props.settings.customProvider?.apiKey ?? ""}
+              onChange={(e) => updateCustomProvider("apiKey", e.target.value)}
+            />
+          </label>
+          <label className="block text-xs text-zinc-400">
+            Model
+            <input
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-sm text-zinc-50"
+              placeholder="gpt-4o-mini"
+              value={props.settings.customProvider?.model ?? ""}
+              onChange={(e) => updateCustomProvider("model", e.target.value)}
+            />
+          </label>
+          <div className="space-y-2">
+            <button
+              className="w-full rounded bg-zinc-700 px-3 py-2 text-sm text-zinc-50 hover:bg-zinc-600 disabled:opacity-50"
+              disabled={testing}
+              onClick={handleTestConnection}
+            >
+              {testing ? "Testing..." : "Test Connection"}
+            </button>
+            {testResult ? (
+              <p className={`text-xs ${testResult.ok ? "text-green-400" : "text-red-400"}`}>
+                {testResult.message}
+              </p>
+            ) : null}
+          </div>
+        </>
+      )}
     </section>
   );
 }
