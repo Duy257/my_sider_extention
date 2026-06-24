@@ -16,7 +16,14 @@ export type ExtensionMessage =
   | { type: "GET_PENDING_SELECTION_PROMPT" }
   | { type: "SELECTION_TOO_LONG"; requestId: string; maxLength: number }
   | { type: "CONTENT_AGENT_READY" }
-  | { type: "EXTRACT_PAGE_CONTENT" };
+  | { type: "EXTRACT_PAGE_CONTENT" }
+  | {
+      type: "TEST_CONNECTION";
+      requestId: string;
+      baseUrl: string;
+      apiKey: string;
+      model: string;
+    };
 
 export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
@@ -33,3 +40,7 @@ export type AiPortResponse =
 export type PageExtractionResponse =
   | { title: string; content: string; url: string }
   | { error: string };
+
+export type TestConnectionResponse =
+  | { ok: true }
+  | { ok: false; error: string };
