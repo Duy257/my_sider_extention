@@ -15,10 +15,22 @@ export default defineUnlistedScript(() => {
   function removeToolbar() {
     if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
     hideTimeoutId = null;
-    toolbar?.remove();
-    toolbar = null;
-    tooLongIndicator?.remove();
-    tooLongIndicator = null;
+    
+    if (toolbar) {
+      const el = toolbar;
+      el.style.opacity = "0";
+      el.style.transform = "scale(0.95) translateY(4px)";
+      setTimeout(() => el.remove(), 150);
+      toolbar = null;
+    }
+    
+    if (tooLongIndicator) {
+      const el = tooLongIndicator;
+      el.style.opacity = "0";
+      el.style.transform = "scale(0.96) translateY(4px)";
+      setTimeout(() => el.remove(), 150);
+      tooLongIndicator = null;
+    }
   }
 
   function currentSelectionText(): string {

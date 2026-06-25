@@ -7,11 +7,13 @@ import type { SavedResult, Settings } from "../../src/lib/storage/types";
 import { AI_STREAM_PORT } from "../../src/lib/messaging/ports";
 import type { AiPortResponse } from "../../src/lib/messaging/types";
 import { ChatComposer } from "./components/ChatComposer";
-import { ChatMessage } from "./components/ChatMessage";
+import { ChatMessage, TypingIndicator } from "./components/ChatMessage";
 import { HeaderBar, type HeaderView } from "./components/HeaderBar";
 import { PromptManager } from "./components/PromptManager";
 import { SavedResults } from "./components/SavedResults";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { SkeletonPanel } from "./components/Skeleton";
+import { EmptyState } from "./components/EmptyState";
 
 type ChatItem = {
   id: string;
@@ -26,16 +28,32 @@ export default function App() {
   const [savedResults, setSavedResultsState] = useState<SavedResult[]>([]);
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [streaming, setStreaming] = useState(false);
-  const [error, setError] = useState("");
+  
+  // Auto-dismissing error state implementation
+  const [error, setErrorState] = useState("");
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setError = (msg: string) => {
+    setErrorState(msg);
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    if (msg) {
+      errorTimerRef.current = setTimeout(() => {
+        setErrorState("");
+      }, 8000);
+    }
+  };
+
   const [readingPage, setReadingPage] = useState(false);
 
   const provider = settings ? getProvider(settings.providerId) : undefined;
   const selectedModel = settings && provider ? settings.selectedModels[provider.id]?.trim() || provider.defaultModel?.trim() : "";
+  
   const missingApiKey = useMemo(() => {
     if (!settings || !provider) return true;
     if (!provider.requiresApiKey) return false;
     return !settings.apiKeys[provider.id]?.trim();
   }, [settings, provider]);
+  
   const missingModel = useMemo(() => {
     if (!settings || !provider) return true;
     return !selectedModel;
@@ -48,6 +66,10 @@ export default function App() {
       setSavedResultsState(loadedSaved);
     });
     chrome.runtime.sendMessage({ type: "ACTIVATE_ACTIVE_TAB_AGENT", requestId: crypto.randomUUID() }).catch(() => undefined);
+    
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
   }, []);
 
   const sendPromptRef = useRef(sendPrompt);
@@ -205,34 +227,64 @@ export default function App() {
   }, [settings?.providerId, selectedModel]);
 
   if (!settings) {
-    return <main className="min-h-screen bg-zinc-950 p-4 text-sm text-zinc-300">Đang tải...</main>;
+    return (
+      <main className="flex min-h-screen flex-col bg-warm-bg text-stone-50">
+        <SkeletonPanel />
+      </main>
+    );
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-zinc-950 text-zinc-50">
+    <main className="flex min-h-screen flex-col bg-warm-bg text-stone-50">
       <HeaderBar view={view} onViewChange={setView} onReadPage={readPage} readingPage={readingPage} />
-      {error ? <div className="border-b border-red-900 bg-red-950 p-2 text-xs text-red-100">{error}</div> : null}
+      
+      {error ? (
+        <div className="mx-3 mt-3 flex items-center gap-2.5 rounded-xl border border-red-900/30 bg-red-950/20 px-3.5 py-2.5 text-xs text-red-400 animate-fade-in-up">
+          <svg className="h-4.5 w-4.5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="flex-1 font-medium">{error}</span>
+          <button 
+            onClick={() => setError("")} 
+            className="text-stone-400 hover:text-stone-200 transition-colors text-sm font-bold px-1"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
       {view === "settings" ? <SettingsPanel settings={settings} onChange={updateSettings} /> : null}
       {view === "prompts" ? <PromptManager prompts={prompts} onChange={updatePrompts} /> : null}
       {view === "saved" ? <SavedResults results={savedResults} onDelete={(id) => updateSavedResults(savedResults.filter((item) => item.id !== id))} /> : null}
+      
       {view === "chat" ? (
         <>
-          {missingApiKey ? (
-            <section className="p-3 text-sm text-amber-100">
-              {provider ? `Thêm khóa API cho ${provider.label} trong Cài đặt trước khi gửi.` : "Chọn nhà cung cấp trong Cài đặt trước khi gửi."}
-            </section>
-          ) : missingModel ? (
-            <section className="p-3 text-sm text-amber-100">
-              {provider ? `Chọn mô hình cho ${provider.label} trong Cài đặt trước khi gửi.` : "Chọn nhà cung cấp trong Cài đặt trước khi gửi."}
-            </section>
-          ) : null}
-          <section className="flex-1 space-y-3 overflow-auto p-3" aria-live="polite" aria-relevant="additions">
-            {messages.length === 0 ? <p className="text-sm text-zinc-400">Hỏi về trang, văn bản đã chọn, hoặc công việc của bạn.</p> : null}
-            {messages.map((item) => (
-              <ChatMessage key={item.id} role={item.role} content={item.content} onSave={item.role === "assistant" ? () => saveMessage(item) : undefined} />
-            ))}
+          <section className="flex-1 space-y-3.5 overflow-auto p-3.5" aria-live="polite" aria-relevant="additions">
+            {messages.length === 0 ? (
+              <EmptyState onChipClick={(text) => sendPrompt(text)} />
+            ) : (
+              messages.map((item) => (
+                <ChatMessage 
+                  key={item.id} 
+                  role={item.role} 
+                  content={item.content} 
+                  onSave={item.role === "assistant" ? () => saveMessage(item) : undefined} 
+                />
+              ))
+            )}
+            {streaming && messages.length > 0 && messages[messages.length - 1].content === "" ? (
+              <TypingIndicator />
+            ) : null}
           </section>
-          <ChatComposer disabled={streaming || missingApiKey || missingModel} onSend={sendPrompt} />
+          
+          <ChatComposer
+            disabled={streaming || missingApiKey || missingModel}
+            onSend={sendPrompt}
+            showMissingKeyBanner={missingApiKey || missingModel}
+            missingType={missingApiKey ? "key" : "model"}
+            providerLabel={provider?.label}
+            sending={streaming}
+          />
         </>
       ) : null}
     </main>

@@ -29,6 +29,11 @@ describe("SettingsPanel", () => {
     expect(screen.queryByLabelText(/Base URL/i)).not.toBeInTheDocument();
   });
 
+  it("shows eye toggle for API key input", () => {
+    render(<SettingsPanel settings={settings()} onChange={vi.fn()} />);
+    expect(screen.getByTitle("Hiện/ẩn khóa API")).toBeInTheDocument();
+  });
+
   it("stores api keys by provider", async () => {
     const onChange = vi.fn();
     render(<SettingsPanel settings={settings()} onChange={onChange} />);
