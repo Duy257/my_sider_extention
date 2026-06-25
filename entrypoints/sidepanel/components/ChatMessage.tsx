@@ -1,4 +1,5 @@
 import React from "react";
+import { MessageContent } from "../../../src/lib/ui/MessageContent";
 
 function RobotAvatar() {
   return (
@@ -37,13 +38,13 @@ export function ChatMessage(props: {
       {!isUser && <RobotAvatar />}
       <div className={`flex flex-col group ${isUser ? "items-end max-w-[85%]" : "items-start max-w-[85%]"}`}>
         <div
-          className={`rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap transition-all duration-300 shadow-sm ${
+          className={`rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words transition-all duration-300 shadow-sm ${
             isUser
               ? "bg-primary text-white rounded-br-none shadow-primary/10 hover:shadow-primary/20 bg-gradient-to-br from-primary to-purple-600 hover:brightness-105"
               : "bg-surface border border-stone-800/60 text-stone-100 rounded-bl-none hover:border-stone-700/80"
           }`}
         >
-          {props.content}
+          <MessageContent content={props.content} />
         </div>
         {!isUser && props.onSave && (
           <div className="mt-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200">

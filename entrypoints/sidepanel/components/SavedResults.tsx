@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { SavedResult } from "../../../src/lib/storage/types";
+import { MessageContent } from "../../../src/lib/ui/MessageContent";
 
 export function SavedResults(props: {
   results: SavedResult[];
@@ -54,9 +55,9 @@ export function SavedResults(props: {
               </button>
             </div>
 
-            <div className="mt-2.5 text-[13px] leading-relaxed text-stone-300 whitespace-pre-wrap">
+            <div className="mt-2.5 text-[13px] leading-relaxed text-stone-300 whitespace-pre-wrap break-words">
               {isExpanded ? (
-                result.outputMarkdown
+                <MessageContent content={result.outputMarkdown} />
               ) : (
                 <div className="line-clamp-3 text-stone-400">{result.outputMarkdown}</div>
               )}
