@@ -15,10 +15,21 @@ const injectedTabs = new Set<number>();
 async function injectContentAgent(tabId: number) {
   if (injectedTabs.has(tabId)) return;
   injectedTabs.add(tabId);
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ["/active-tab-agent.js"]
-  });
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["/active-tab-agent.js"]
+    });
+    // Set badge text to ON to give visual feedback to the user
+    chrome.action.setBadgeText({ tabId, text: "ON" });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#8B5CF6" }); // Violet color
+  } catch (err) {
+    injectedTabs.delete(tabId);
+    console.error("Failed to inject content agent:", err);
+    // Set badge text to ERR to indicate failure (e.g. on chrome:// pages)
+    chrome.action.setBadgeText({ tabId, text: "ERR" });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#EF4444" }); // Red color
+  }
 }
 
 export default defineBackground(() => {

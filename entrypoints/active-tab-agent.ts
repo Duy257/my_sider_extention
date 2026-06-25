@@ -8,6 +8,40 @@ export default defineUnlistedScript(() => {
   if (window.__personalAiSidebarAgentInstalled) return;
   window.__personalAiSidebarAgentInstalled = true;
 
+  // Show a premium toast notification indicating the agent is ready
+  const toast = document.createElement("div");
+  toast.innerText = "✨ AI Assistant đã kích hoạt! Hãy bôi đen văn bản để sử dụng.";
+  toast.style.position = "fixed";
+  toast.style.bottom = "24px";
+  toast.style.right = "24px";
+  toast.style.zIndex = "2147483647";
+  toast.style.background = "#1C1917";
+  toast.style.color = "#FAFAF9";
+  toast.style.padding = "10px 16px";
+  toast.style.borderRadius = "8px";
+  toast.style.fontSize = "13px";
+  toast.style.fontWeight = "500";
+  toast.style.boxShadow = "0 8px 30px rgba(0,0,0,0.3)";
+  toast.style.border = "1px solid rgba(68,64,60,0.5)";
+  toast.style.fontFamily = "system-ui, sans-serif";
+  toast.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+  toast.style.transform = "translateY(20px)";
+  toast.style.opacity = "0";
+  document.body.appendChild(toast);
+  
+  // Animate in
+  requestAnimationFrame(() => {
+    toast.style.transform = "translateY(0)";
+    toast.style.opacity = "1";
+  });
+
+  // Fade out and remove
+  setTimeout(() => {
+    toast.style.transform = "translateY(20px)";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+
   let toolbar: HTMLElement | null = null;
   let tooLongIndicator: HTMLElement | null = null;
   let hideTimeoutId: number | null = null;
