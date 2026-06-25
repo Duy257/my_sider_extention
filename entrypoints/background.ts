@@ -33,9 +33,8 @@ async function injectContentAgent(tabId: number) {
 }
 
 export default defineBackground(() => {
-  // Inject content script on extension icon click (replaces side panel activation)
-  chrome.action.onClicked.addListener((tab) => {
-    if (tab.id) injectContentAgent(tab.id);
+  chrome.runtime.onInstalled.addListener(() => {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   });
 
   chrome.runtime.onConnect.addListener((port) => {
