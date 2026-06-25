@@ -34,10 +34,9 @@ const styles = {
   body: {
     flex: 1,
     overflow: "auto",
-    padding: "12px",
+    padding: "14px 16px",
     fontSize: "13.5px",
     lineHeight: "1.6",
-    whiteSpace: "pre-wrap" as const,
     wordBreak: "break-word" as const,
   },
   loadingContainer: {

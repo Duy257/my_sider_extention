@@ -47,6 +47,22 @@ export function mountFloatingWindow(options: MountOptions) {
     @keyframes floating-blink {
       50% { opacity: 0; }
     }
+    /* Scrollbar Styling for Shadow DOM */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(28, 25, 23, 0.5);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(120, 113, 108, 0.4);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(168, 162, 158, 0.6);
+    }
   `;
   shadow.appendChild(style);
 
