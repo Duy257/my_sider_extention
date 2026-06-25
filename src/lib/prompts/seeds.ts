@@ -4,8 +4,8 @@ export function createSeedPromptTemplates(now: string): PromptTemplate[] {
   return [
     {
       id: "seed-ceo-rewrite",
-      name: "CEO rewrite",
-      instruction: "Rewrite in CEO style: clear, firm, no exaggeration.",
+      name: "Viết lại phong cách CEO",
+      instruction: "Viết lại theo phong cách CEO: rõ ràng, dứt khoát, không cường điệu.",
       category: "ceo",
       sortOrder: 0,
       createdAt: now,
@@ -13,8 +13,8 @@ export function createSeedPromptTemplates(now: string): PromptTemplate[] {
     },
     {
       id: "seed-problem-cause-solution",
-      name: "Problem Cause Solution",
-      instruction: "Summarize as table: Problem - Cause - Solution.",
+      name: "Vấn đề - Nguyên nhân - Giải pháp",
+      instruction: "Tóm tắt thành bảng: Vấn đề - Nguyên nhân - Giải pháp.",
       category: "general",
       sortOrder: 1,
       createdAt: now,
@@ -22,8 +22,8 @@ export function createSeedPromptTemplates(now: string): PromptTemplate[] {
     },
     {
       id: "seed-operations-analysis",
-      name: "Operations analysis",
-      instruction: "Analyze from a business operations perspective.",
+      name: "Phân tích vận hành",
+      instruction: "Phân tích từ góc nhìn vận hành doanh nghiệp.",
       category: "ceo",
       sortOrder: 2,
       createdAt: now,
@@ -31,8 +31,8 @@ export function createSeedPromptTemplates(now: string): PromptTemplate[] {
     },
     {
       id: "seed-action-plan",
-      name: "Action plan",
-      instruction: "Turn this content into an action plan.",
+      name: "Kế hoạch hành động",
+      instruction: "Biến nội dung này thành kế hoạch hành động.",
       category: "general",
       sortOrder: 3,
       createdAt: now,
@@ -40,8 +40,8 @@ export function createSeedPromptTemplates(now: string): PromptTemplate[] {
     },
     {
       id: "seed-senior-dev-review",
-      name: "Senior dev review",
-      instruction: "Review technical errors as a senior developer.",
+      name: "Senior dev đánh giá code",
+      instruction: "Đánh giá lỗi kỹ thuật dưới góc nhìn senior developer, đưa ra giải pháp cụ thể.",
       category: "dev",
       sortOrder: 4,
       createdAt: now,

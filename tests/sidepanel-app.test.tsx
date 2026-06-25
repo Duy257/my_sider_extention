@@ -4,5 +4,5 @@ import App from "../entrypoints/sidepanel/App";
 test("renders the sidebar after settings load", async () => {
   render(<App />);
 
-  expect(await screen.findByText(/Add your OpenAI API key/)).toBeInTheDocument();
+  expect(await screen.findByText(/Thêm khóa API cho OpenAI/)).toBeInTheDocument();
 });

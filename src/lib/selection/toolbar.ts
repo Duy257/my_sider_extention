@@ -30,13 +30,14 @@ export function renderTooLongIndicator(
   el.style.font = "12px system-ui, sans-serif";
   el.style.boxShadow = "0 8px 24px rgba(0,0,0,0.24)";
   el.style.whiteSpace = "nowrap";
-  el.textContent = "Selection too long (max 20,000 chars)";
+  el.textContent = "Văn bản quá dài (tối đa 20,000 ký tự)";
   return el;
 }
 
 export function renderSelectionToolbar(
   position: { top: number; left: number },
-  onAction: (action: SelectionAction) => void
+  onAction: (action: SelectionAction) => void,
+  onDismiss?: () => void
 ): HTMLElement {
   const toolbar = document.createElement("div");
   toolbar.dataset.personalAiToolbar = "true";
@@ -45,25 +46,67 @@ export function renderSelectionToolbar(
   toolbar.style.left = `${position.left}px`;
   toolbar.style.zIndex = "2147483647";
   toolbar.style.display = "flex";
-  toolbar.style.gap = "4px";
-  toolbar.style.padding = "6px";
+  toolbar.style.alignItems = "center";
+  toolbar.style.gap = "2px";
+  toolbar.style.padding = "4px 6px";
   toolbar.style.border = "1px solid #3f3f46";
-  toolbar.style.borderRadius = "6px";
+  toolbar.style.borderRadius = "8px";
   toolbar.style.background = "#18181b";
-  toolbar.style.boxShadow = "0 8px 24px rgba(0,0,0,0.24)";
+  toolbar.style.boxShadow = "0 8px 24px rgba(0,0,0,0.32)";
+  toolbar.style.backdropFilter = "blur(8px)";
+  toolbar.style.whiteSpace = "nowrap";
+
+  // Small arrow pointing toward the selection
+  const arrow = document.createElement("div");
+  arrow.style.position = "absolute";
+  arrow.style.width = "8px";
+  arrow.style.height = "8px";
+  arrow.style.background = "#18181b";
+  arrow.style.borderLeft = "1px solid #3f3f46";
+  arrow.style.borderTop = "1px solid #3f3f46";
+  arrow.style.transform = "rotate(45deg)";
+  arrow.style.bottom = "-5px";
+  arrow.style.left = "50%";
+  arrow.style.marginLeft = "-4px";
+  arrow.style.zIndex = "-1";
+  toolbar.appendChild(arrow);
 
   for (const item of SELECTION_ACTIONS) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = item.label;
-    button.style.color = "#f4f4f5";
-    button.style.background = "#27272a";
+    button.title = item.label;
+    button.innerHTML = `<span style="font-size:14px;line-height:1">${item.icon}</span><span style="margin-left:4px">${item.label}</span>`;
+    button.style.display = "inline-flex";
+    button.style.alignItems = "center";
+    button.style.color = "#e4e4e7";
+    button.style.background = "transparent";
     button.style.border = "0";
-    button.style.borderRadius = "4px";
-    button.style.padding = "4px 6px";
+    button.style.borderRadius = "6px";
+    button.style.padding = "6px 8px";
     button.style.font = "12px system-ui, sans-serif";
-    button.addEventListener("click", () => onAction(item.action));
+    button.style.cursor = "pointer";
+    button.style.transition = "background 0.15s";
+    button.addEventListener("mouseenter", () => {
+      button.style.background = "#27272a";
+    });
+    button.addEventListener("mouseleave", () => {
+      button.style.background = "transparent";
+    });
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onAction(item.action);
+    });
     toolbar.appendChild(button);
+
+    // Divider between buttons (except last)
+    if (item !== SELECTION_ACTIONS[SELECTION_ACTIONS.length - 1]) {
+      const divider = document.createElement("span");
+      divider.style.width = "1px";
+      divider.style.height = "16px";
+      divider.style.background = "#3f3f46";
+      divider.style.margin = "0 2px";
+      toolbar.appendChild(divider);
+    }
   }
 
   return toolbar;

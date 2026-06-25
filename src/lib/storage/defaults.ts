@@ -1,12 +1,12 @@
+import { getDefaultProviderId } from "../ai/providers";
 import { createSeedPromptTemplates } from "../prompts/seeds";
 import type { Settings } from "./types";
 
 export function createDefaultSettings(now = new Date().toISOString()): Settings {
   return {
-    provider: "openai",
-    openaiApiKey: undefined,
-    modelPreset: "gpt-5.4-mini",
-    customModel: "",
+    providerId: getDefaultProviderId(),
+    apiKeys: {},
+    selectedModels: {},
     defaultLanguage: "vi",
     updatedAt: now
   };

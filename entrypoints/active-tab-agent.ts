@@ -9,10 +9,12 @@ export default defineUnlistedScript(() => {
 
   let toolbar: HTMLElement | null = null;
   let tooLongIndicator: HTMLElement | null = null;
-  let selectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let hideTimeoutId: number | null = null;
   let ignoreNextSelectionChange = false;
 
   function removeToolbar() {
+    if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
+    hideTimeoutId = null;
     toolbar?.remove();
     toolbar = null;
     tooLongIndicator?.remove();
@@ -28,17 +30,20 @@ export default defineUnlistedScript(() => {
     const rect = selection?.rangeCount ? selection.getRangeAt(0).getBoundingClientRect() : null;
     if (!rect) return { top: 8, left: 8 };
 
-    const aboveSpace = rect.top;
-    const needed = 42 + 8;
-    if (aboveSpace >= needed) {
+    const toolbarHeight = 42;
+    const arrowHeight = 5;
+    const gap = 6;
+
+    if (rect.top >= toolbarHeight + gap) {
       return {
-        top: Math.max(8, rect.top - 42),
-        left: Math.max(8, rect.left)
+        top: Math.max(4, rect.top - toolbarHeight - gap - arrowHeight),
+        left: Math.max(4, rect.left + rect.width / 2 - 140),
       };
     }
+
     return {
-      top: Math.max(8, rect.bottom + 8),
-      left: Math.max(8, rect.left)
+      top: Math.max(4, rect.bottom + gap + arrowHeight),
+      left: Math.max(4, rect.left + rect.width / 2 - 140),
     };
   }
 
@@ -54,37 +59,64 @@ export default defineUnlistedScript(() => {
     });
   }
 
+  function showToolbar() {
+    removeToolbar();
+    const text = currentSelectionText();
+    if (!text) return;
+
+    if (isSelectionTooLong(text)) {
+      const pos = selectionPosition();
+      tooLongIndicator = renderTooLongIndicator({ top: pos.top, left: pos.left });
+      document.body.appendChild(tooLongIndicator);
+      return;
+    }
+
+    if (!isSelectionLengthAllowed(text)) return;
+
+    toolbar = renderSelectionToolbar(selectionPosition(), (action) => {
+      ignoreNextSelectionChange = true;
+      sendSelectionAction(action, text);
+      removeToolbar();
+      window.getSelection()?.removeAllRanges();
+    });
+    document.body.appendChild(toolbar);
+  }
+
+  // Single source of truth: selectionchange drives all toolbar show/hide
   document.addEventListener("selectionchange", () => {
     if (ignoreNextSelectionChange) {
       ignoreNextSelectionChange = false;
       return;
     }
 
-    if (selectionTimeoutId !== null) clearTimeout(selectionTimeoutId);
-
-    selectionTimeoutId = window.setTimeout(() => {
-      selectionTimeoutId = null;
-      removeToolbar();
-      const text = currentSelectionText();
-      if (!text) return;
-
-      if (isSelectionTooLong(text)) {
-        const pos = selectionPosition();
-        tooLongIndicator = renderTooLongIndicator(pos);
-        document.body.appendChild(tooLongIndicator);
-        return;
-      }
-
-      if (!isSelectionLengthAllowed(text)) return;
-
-      toolbar = renderSelectionToolbar(selectionPosition(), (action) => {
-        ignoreNextSelectionChange = true;
-        sendSelectionAction(action, text);
-        removeToolbar();
-      });
-      document.body.appendChild(toolbar);
-    }, 120);
+    // Debounce: wait for selection to settle before acting
+    if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
+    hideTimeoutId = window.setTimeout(() => {
+      hideTimeoutId = null;
+      showToolbar();
+    }, 150);
   });
+
+  // Hide toolbar on scroll
+  document.addEventListener("scroll", removeToolbar, { passive: true });
+
+  // Hide toolbar + clear selection on click outside toolbar
+  document.addEventListener("mousedown", (event) => {
+    if (toolbar && !toolbar.contains(event.target as Node)) {
+      removeToolbar();
+      window.getSelection()?.removeAllRanges();
+    }
+  });
+
+  // Escape key dismisses toolbar
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && toolbar) {
+      removeToolbar();
+    }
+  });
+
+  // Re-position or dismiss on resize
+  window.addEventListener("resize", removeToolbar);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "EXTRACT_PAGE_CONTENT") {

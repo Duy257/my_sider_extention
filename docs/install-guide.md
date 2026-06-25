@@ -4,7 +4,7 @@
 
 - Google Chrome hoặc Chromium (bản mới nhất)
 - Node.js 18+ và npm (đã cài sẵn)
-- OpenAI API key (tạo tại https://platform.openai.com/api-keys)
+- API key cho provider bạn chọn (OpenAI, OpenCode, CommandCode, v.v.)
 
 ## Cài đặt
 
@@ -30,9 +30,10 @@ Output sẽ nằm ở `.output/chrome-mv3/`.
 
 1. Nhấn icon extension trên thanh toolbar để mở side panel
 2. Vào tab **Settings**
-3. Nhập OpenAI API key
-4. Chọn model (mặc định `GPT-5.4 mini`)
-5. Quay lại **Chat** và bắt đầu sử dụng
+3. Chọn provider từ danh sách bundled JSON
+4. Nhập API key nếu provider yêu cầu
+5. Chọn model được load từ provider hoặc danh sách bundled fallback
+6. Quay lại **Chat** và bắt đầu sử dụng
 
 ## Dev mode (tự động reload)
 
@@ -56,6 +57,8 @@ WXT sẽ build và watch thay đổi. Vào `chrome://extensions`, load unpacked 
 
 ## Lưu ý
 
+- Provider được khai báo trong bundled JSON của extension
+- Model được auto-load từ `model_url` của provider nếu API key hợp lệ hoặc provider không yêu cầu API key
+- Extension có host permissions cho OpenAI, HTTPS provider, localhost và 127.0.0.1 để hỗ trợ provider tùy chỉnh được build sẵn
 - Extension không có backend — API key lưu local trong `chrome.storage.local`
 - Content script chỉ được inject khi bạn chủ động bấm **Read page** hoặc mở side panel
-- Extension không có quyền `<all_urls>`, chỉ gọi được `api.openai.com`

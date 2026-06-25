@@ -4,6 +4,7 @@ import type { SelectionAction } from "../selection/types";
 export type ExtensionMessage =
   | { type: "ACTIVATE_ACTIVE_TAB_AGENT"; requestId: string }
   | { type: "EXTRACT_ACTIVE_PAGE"; requestId: string }
+  | { type: "LOAD_MODELS"; requestId: string }
   | {
       type: "SELECTION_ACTION";
       requestId: string;
@@ -17,13 +18,7 @@ export type ExtensionMessage =
   | { type: "SELECTION_TOO_LONG"; requestId: string; maxLength: number }
   | { type: "CONTENT_AGENT_READY" }
   | { type: "EXTRACT_PAGE_CONTENT" }
-  | {
-      type: "TEST_CONNECTION";
-      requestId: string;
-      baseUrl: string;
-      apiKey: string;
-      model: string;
-    }
+  | { type: "TEST_CONNECTION"; requestId: string }
   | {
       type: "FORWARD_SELECTION_ACTION";
       requestId: string;
@@ -35,7 +30,6 @@ export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
   requestId: string;
   messages: AiMessage[];
-  model: string;
 };
 
 export type AiPortResponse =
@@ -49,4 +43,8 @@ export type PageExtractionResponse =
 
 export type TestConnectionResponse =
   | { ok: true }
+  | { ok: false; error: string };
+
+export type LoadModelsResponse =
+  | { ok: true; models: string[] }
   | { ok: false; error: string };

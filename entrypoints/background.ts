@@ -1,8 +1,7 @@
-import { streamChatCompletion, testConnection } from "../src/lib/ai/client";
-import { resolveSelectedModel } from "../src/lib/ai/stream";
+import { fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
+import { resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest } from "../src/lib/messaging/types";
-import type { Settings } from "../src/lib/storage/types";
 import { getSettings } from "../src/lib/storage";
 
 async function getActiveTab() {
@@ -20,33 +19,6 @@ async function injectContentAgent(tabId: number) {
     target: { tabId },
     files: ["/active-tab-agent.js"]
   });
-}
-
-function buildStreamConfig(settings: Settings) {
-  if (settings.provider === "custom" && settings.customProvider) {
-    const cp = settings.customProvider;
-    if (!cp.apiKey?.trim()) {
-      return { error: "Add your API key in Settings for the custom provider." };
-    }
-    if (!cp.model.trim()) {
-      return { error: "Enter a model name for the custom provider." };
-    }
-    return {
-      baseUrl: cp.baseUrl,
-      apiKey: cp.apiKey.trim(),
-      model: cp.model.trim()
-    };
-  }
-
-  const apiKey = settings.openaiApiKey?.trim();
-  if (!apiKey) {
-    return { error: "Add your OpenAI API key in Settings before sending a request." };
-  }
-  return {
-    baseUrl: "https://api.openai.com/v1/chat/completions",
-    apiKey,
-    model: resolveSelectedModel(settings.modelPreset, settings.customModel)
-  };
 }
 
 export default defineBackground(() => {
@@ -75,17 +47,17 @@ export default defineBackground(() => {
 
       try {
         const settings = await getSettings();
-        const config = buildStreamConfig(settings);
+        const runtime = resolveProviderRuntimeConfig(settings);
 
-        if ("error" in config) {
-          send({ type: "AI_STREAM_ERROR", requestId: message.requestId, message: config.error });
+        if (!runtime.ok) {
+          send({ type: "AI_STREAM_ERROR", requestId: message.requestId, message: runtime.error });
           return;
         }
 
         await streamChatCompletion({
-          baseUrl: config.baseUrl,
-          apiKey: config.apiKey,
-          model: config.model,
+          baseUrl: runtime.config.baseUrl,
+          apiKey: runtime.config.apiKey,
+          model: runtime.config.model,
           messages: message.messages,
           signal: controller.signal,
           callbacks: {
@@ -119,12 +91,31 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message.type === "LOAD_MODELS") {
+      getSettings()
+        .then(async (settings) => {
+          const runtime = resolveProviderRuntimeConfig(settings);
+          if (!runtime.ok) return { ok: false as const, error: runtime.error };
+          const result = await fetchModels({ modelUrl: runtime.config.modelUrl, apiKey: runtime.config.apiKey });
+          if ("models" in result) return { ok: true as const, models: result.models };
+          return { ok: false as const, error: result.error };
+        })
+        .then(sendResponse);
+      return true;
+    }
+
     if (message.type === "TEST_CONNECTION") {
-      testConnection({
-        baseUrl: message.baseUrl,
-        apiKey: message.apiKey,
-        model: message.model
-      }).then(sendResponse);
+      getSettings()
+        .then((settings) => {
+          const runtime = resolveProviderRuntimeConfig(settings);
+          if (!runtime.ok) return { ok: false as const, error: runtime.error };
+          return testConnection({
+            baseUrl: runtime.config.baseUrl,
+            apiKey: runtime.config.apiKey,
+            model: runtime.config.model
+          });
+        })
+        .then(sendResponse);
       return true;
     }
 

@@ -1,18 +1,78 @@
-export type ProviderPreset = {
+import rawProviders from "./providers.json";
+
+type RawProvider = {
+  id?: unknown;
+  label?: unknown;
+  base_url?: unknown;
+  model_url?: unknown;
+  requires_api_key?: unknown;
+  default_model?: unknown;
+  known_models?: unknown;
+};
+
+export type ProviderDefinition = {
   id: string;
   label: string;
   baseUrl: string;
-  defaultModel: string;
-  knownModels?: string[];
+  modelUrl: string;
+  requiresApiKey: boolean;
+  defaultModel?: string;
+  knownModels: string[];
 };
 
-export const PROVIDER_PRESETS: ProviderPreset[] = [
-  { id: "custom", label: "Custom (manual)", baseUrl: "", defaultModel: "" },
-  { id: "opencode", label: "OpenCode", baseUrl: "https://api.opencode.ai/v1/chat/completions", defaultModel: "gpt-4o-mini", knownModels: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"] },
-  { id: "commandcode", label: "CommandCode", baseUrl: "https://api.commandcode.ai/v1/chat/completions", defaultModel: "command-r-plus", knownModels: ["command-r-plus", "command-r", "command-light"] },
-  { id: "lmstudio", label: "LMStudio", baseUrl: "http://localhost:1234/v1/chat/completions", defaultModel: "" },
-];
+function readRequiredString(provider: RawProvider, field: "id" | "label" | "base_url" | "model_url", label: string): string {
+  const value = typeof provider[field] === "string" ? provider[field].trim() : "";
+  if (!value) throw new Error(`Provider ${label} is missing ${field}.`);
+  return value;
+}
 
-export function getPreset(id: string): ProviderPreset | undefined {
-  return PROVIDER_PRESETS.find((p) => p.id === id);
+export function normalizeProviders(raw: unknown): ProviderDefinition[] {
+  if (!Array.isArray(raw)) throw new Error("Provider registry must be an array.");
+
+  const ids = new Set<string>();
+  const providers = raw.map((value) => {
+    const provider = value as RawProvider;
+    const id = readRequiredString(provider, "id", "<unknown>");
+    if (ids.has(id)) throw new Error(`Duplicate provider id: ${id}`);
+    ids.add(id);
+
+    const label = readRequiredString(provider, "label", id);
+    const baseUrl = readRequiredString(provider, "base_url", id);
+    const modelUrl = readRequiredString(provider, "model_url", id);
+    const defaultModel = typeof provider.default_model === "string" && provider.default_model.trim()
+      ? provider.default_model.trim()
+      : undefined;
+    const knownModels = Array.isArray(provider.known_models)
+      ? Array.from(new Set(provider.known_models
+          .map((model) => (typeof model === "string" ? model.trim() : ""))
+          .filter(Boolean)))
+      : [];
+
+    return {
+      id,
+      label,
+      baseUrl,
+      modelUrl,
+      requiresApiKey: typeof provider.requires_api_key === "boolean" ? provider.requires_api_key : true,
+      defaultModel,
+      knownModels
+    };
+  });
+
+  if (providers.length === 0) throw new Error("Provider registry must contain at least one provider.");
+  return providers;
+}
+
+export const PROVIDERS = normalizeProviders(rawProviders);
+
+export function getProvider(id: string): ProviderDefinition | undefined {
+  return PROVIDERS.find((provider) => provider.id === id);
+}
+
+export function getDefaultProviderId(): string {
+  return getProvider("openai")?.id ?? PROVIDERS[0].id;
+}
+
+export function getProviderOptions(): { id: string; label: string }[] {
+  return PROVIDERS.map(({ id, label }) => ({ id, label }));
 }

@@ -19,10 +19,10 @@ export function ChatComposer(props: { disabled: boolean; onSend: (text: string) 
         value={value}
         disabled={props.disabled}
         onChange={(event) => setValue(event.target.value)}
-        aria-label="Ask about your work"
+        aria-label="Hỏi về công việc của bạn"
       />
       <button className="mt-2 w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:bg-zinc-700" disabled={props.disabled}>
-        Send
+        Gửi
       </button>
     </form>
   );

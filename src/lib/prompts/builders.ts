@@ -9,7 +9,7 @@ export type PagePromptInput = {
 };
 
 const SYSTEM_MESSAGE =
-  "You are a concise personal AI work assistant. Help the user read, understand, rewrite, analyze, and turn browser content into action. Prefer practical structure and clear next steps.";
+  "Bạn là trợ lý AI cá nhân, chuyên giúp đọc hiểu, viết lại, phân tích và biến nội dung trình duyệt thành hành động. Ưu tiên cấu trúc thực tế và các bước rõ ràng.";
 
 export function buildUserChatMessages(input: string): AiMessage[] {
   return [
@@ -20,22 +20,22 @@ export function buildUserChatMessages(input: string): AiMessage[] {
 
 export function buildPagePrompt(input: PagePromptInput): string {
   const warningText = input.warnings.length
-    ? `\nWarnings: ${input.warnings.join(" ")} Treat this as partial page content when relevant.\n`
+    ? `\nCảnh báo: ${input.warnings.join(" ")} Chỉ dùng một phần nội dung trang khi cần.\n`
     : "";
 
   return [
-    "Read this page and summarize it from a CEO perspective.",
+    "Đọc trang này và tóm tắt từ góc nhìn CEO.",
     "",
-    `Title: ${input.title}`,
+    `Tiêu đề: ${input.title}`,
     `URL: ${input.url}`,
     warningText.trim(),
-    "Return:",
-    "1. Key points",
-    "2. Applicable opportunities",
-    "3. Implementation risks",
-    "4. Immediate action items",
+    "Trả về:",
+    "1. Điểm chính",
+    "2. Cơ hội áp dụng",
+    "3. Rủi ro triển khai",
+    "4. Hành động ngay",
     "",
-    "Page content:",
+    "Nội dung trang:",
     input.text
   ]
     .filter(Boolean)
@@ -44,12 +44,12 @@ export function buildPagePrompt(input: PagePromptInput): string {
 
 export function buildSelectionPrompt(action: SelectionAction, text: string): string {
   const instructions: Record<SelectionAction, string> = {
-    explain: "Explain this selected text clearly and practically.",
-    translate_vi: "Translate this selected text to Vietnamese while preserving meaning and tone.",
-    rewrite_professional: "Rewrite this selected text more professionally. Keep it concise and readable.",
-    summarize: "Summarize this selected text into the most important points.",
-    action_list: "Convert this selected text into a bullet/action list with clear next steps."
+    explain: "Giải thích đoạn văn bản này một cách rõ ràng và thực tế.",
+    translate_vi: "Dịch đoạn văn bản này sang tiếng Việt, giữ nguyên ý nghĩa và giọng văn.",
+    rewrite_professional: "Viết lại đoạn văn bản này chuyên nghiệp hơn. Giữ súc tích và dễ đọc.",
+    summarize: "Tóm tắt đoạn văn bản này thành những điểm quan trọng nhất.",
+    action_list: "Chuyển đoạn văn bản này thành danh sách bullet/action list với các bước rõ ràng."
   };
 
-  return `${instructions[action]}\n\nSelected text:\n${text}`;
+  return `${instructions[action]}\n\nĐoạn văn bản:\n${text}`;
 }

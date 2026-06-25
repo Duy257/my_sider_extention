@@ -1,5 +1,5 @@
 import { createDefaultSettings, createInitialPromptTemplates } from "./defaults";
-import { CURRENT_SCHEMA_VERSION, migrateStorageEnvelope } from "./migrations";
+import { CURRENT_SCHEMA_VERSION, migrateSettingsEnvelope, migrateStorageEnvelope } from "./migrations";
 import type { SavedResult, Settings, StorageEnvelope } from "./types";
 import type { PromptTemplate } from "../prompts/types";
 
@@ -35,7 +35,7 @@ export async function getSettings(): Promise<Settings> {
   try {
     const fallback = createDefaultSettings();
     const stored = await getLocal<StorageEnvelope<Settings> | Settings>(SETTINGS_KEY);
-    const envelope = migrateStorageEnvelope(stored, CURRENT_SCHEMA_VERSION, fallback);
+    const envelope = migrateSettingsEnvelope(stored, fallback);
     if (needsMigration(stored)) {
       await setLocal(SETTINGS_KEY, envelope);
     }

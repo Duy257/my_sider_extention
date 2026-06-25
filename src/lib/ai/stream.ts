@@ -1,11 +1,3 @@
-import { DEFAULT_OPENAI_MODEL } from "./models";
-
-export function resolveSelectedModel(modelPreset?: string, customModel?: string): string {
-  const custom = customModel?.trim();
-  if (custom) return custom;
-  return modelPreset?.trim() || DEFAULT_OPENAI_MODEL;
-}
-
 export function mapStreamError(error: unknown): string {
   if (error instanceof DOMException && error.name === "AbortError") return "";
   if (error instanceof TypeError) return "Network error. Check your internet connection.";

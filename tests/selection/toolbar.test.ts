@@ -15,12 +15,15 @@ describe("selection toolbar", () => {
     expect(isSelectionTooLong("a".repeat(20002))).toBe(true);
   });
 
-  it("renders five action buttons", () => {
+  it("renders five action buttons with Vietnamese labels", () => {
     const toolbar = renderSelectionToolbar({ top: 10, left: 20 }, () => undefined);
 
     expect(toolbar.querySelectorAll("button")).toHaveLength(5);
-    expect(toolbar.textContent).toContain("Explain");
-    expect(toolbar.textContent).toContain("Translate VI");
+    expect(toolbar.textContent).toContain("Giải thích");
+    expect(toolbar.textContent).toContain("Dịch sang tiếng Việt");
+    expect(toolbar.textContent).toContain("Viết lại chuyên nghiệp");
+    expect(toolbar.textContent).toContain("Tóm tắt");
+    expect(toolbar.textContent).toContain("Bullet/Action list");
   });
 
   it("button click invokes onAction callback with correct action", () => {
@@ -45,9 +48,9 @@ describe("selection toolbar", () => {
     expect(isSelectionTooLong("   ")).toBe(false);
   });
 
-  it("renders too-long indicator pill", () => {
+  it("renders too-long indicator pill with Vietnamese text", () => {
     const el = renderTooLongIndicator({ top: 100, left: 200 });
-    expect(el.textContent).toBe("Selection too long (max 20,000 chars)");
+    expect(el.textContent).toBe("Văn bản quá dài (tối đa 20,000 ký tự)");
     expect(el.style.position).toBe("fixed");
     expect(el.style.top).toBe("100px");
     expect(el.style.left).toBe("200px");

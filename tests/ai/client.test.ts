@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { streamChatCompletion } from "../../src/lib/ai/client";
+import { fetchModels, streamChatCompletion, testConnection } from "../../src/lib/ai/client";
 
 function createMockSSE(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -113,6 +113,73 @@ describe("streamChatCompletion", () => {
     });
 
     expect(onError).toHaveBeenCalledWith("Network error. Check your internet connection.");
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("fetchModels", () => {
+  it("loads, deduplicates, and sorts model ids", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ id: "z-model" }, { id: "a-model" }, { id: "a-model" }, { id: "" }] })
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(fetchModels({ modelUrl: "https://api.test/v1/models", apiKey: "sk-test" })).resolves.toEqual({ models: ["a-model", "z-model"] });
+    expect(mockFetch).toHaveBeenCalledWith("https://api.test/v1/models", { headers: { Authorization: "Bearer sk-test" } });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("omits Authorization when apiKey is empty", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ id: "local-model" }] })
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchModels({ modelUrl: "http://localhost:1234/v1/models" });
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:1234/v1/models", { headers: {} });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("returns provider error messages", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve(JSON.stringify({ error: { message: "Bad key" } }))
+    }));
+
+    await expect(fetchModels({ modelUrl: "https://api.test/v1/models", apiKey: "bad" })).resolves.toEqual({ error: "Bad key" });
+    vi.unstubAllGlobals();
+  });
+
+  it("returns non-json model response errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.reject(new SyntaxError("bad json"))
+    }));
+
+    await expect(fetchModels({ modelUrl: "https://api.test/v1/models" })).resolves.toEqual({ error: "Provider returned a non-JSON models response." });
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("optional auth", () => {
+  it("testConnection omits Authorization when apiKey is empty", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: "ok" } }] })
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await testConnection({ baseUrl: "http://localhost:1234/v1/chat/completions", model: "local-model" });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:1234/v1/chat/completions",
+      expect.objectContaining({ headers: { "Content-Type": "application/json" } })
+    );
+
     vi.unstubAllGlobals();
   });
 });

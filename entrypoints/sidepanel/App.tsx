@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getProvider } from "../../src/lib/ai/providers";
 import { buildUserChatMessages } from "../../src/lib/prompts/builders";
 import { getPromptTemplates, getSavedResults, getSettings, savePromptTemplates, saveSavedResults, saveSettings } from "../../src/lib/storage";
 import type { PromptTemplate } from "../../src/lib/prompts/types";
@@ -28,13 +29,17 @@ export default function App() {
   const [error, setError] = useState("");
   const [readingPage, setReadingPage] = useState(false);
 
+  const provider = settings ? getProvider(settings.providerId) : undefined;
+  const selectedModel = settings && provider ? settings.selectedModels[provider.id]?.trim() || provider.defaultModel?.trim() : "";
   const missingApiKey = useMemo(() => {
-    if (!settings) return true;
-    if (settings.provider === "custom") {
-      return !settings.customProvider?.apiKey?.trim();
-    }
-    return !settings.openaiApiKey?.trim();
-  }, [settings]);
+    if (!settings || !provider) return true;
+    if (!provider.requiresApiKey) return false;
+    return !settings.apiKeys[provider.id]?.trim();
+  }, [settings, provider]);
+  const missingModel = useMemo(() => {
+    if (!settings || !provider) return true;
+    return !selectedModel;
+  }, [settings, provider, selectedModel]);
 
   useEffect(() => {
     Promise.all([getSettings(), getPromptTemplates(), getSavedResults()]).then(([loadedSettings, loadedPrompts, loadedSaved]) => {
@@ -45,21 +50,11 @@ export default function App() {
     chrome.runtime.sendMessage({ type: "ACTIVATE_ACTIVE_TAB_AGENT", requestId: crypto.randomUUID() }).catch(() => undefined);
   }, []);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const sendPromptRef = useRef(sendPrompt);
   async function updateSettings(next: Settings) {
     setSettings(next);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      saveSettings(next).catch(() => undefined);
-    }, 300);
+    await saveSettings(next);
   }
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
 
   async function updatePrompts(next: PromptTemplate[]) {
     setPrompts(next);
@@ -90,14 +85,14 @@ export default function App() {
       port = chrome.runtime.connect({ name: AI_STREAM_PORT });
     } catch {
       setStreaming(false);
-      setError("Failed to connect to AI service.");
+      setError("Không thể kết nối dịch vụ AI.");
       return;
     }
 
     port.onDisconnect.addListener(() => {
       setStreaming(false);
       if (chrome.runtime.lastError) {
-        setError(chrome.runtime.lastError.message || "Connection lost.");
+        setError(chrome.runtime.lastError.message || "Mất kết nối.");
       }
     });
 
@@ -122,15 +117,10 @@ export default function App() {
       }
     });
 
-    const model = settings.provider === "custom"
-      ? (settings.customProvider?.model || "")
-      : (settings.modelPreset || "gpt-5.4-mini");
-
     port.postMessage({
       type: "AI_CHAT_REQUEST",
       requestId,
-      messages: buildUserChatMessages(text),
-      model
+      messages: buildUserChatMessages(text)
     });
   }
 
@@ -150,7 +140,7 @@ export default function App() {
   async function saveMessage(item: ChatItem) {
     const newResult: SavedResult = {
       id: crypto.randomUUID(),
-      title: item.content.slice(0, 60) || "Saved response",
+      title: item.content.slice(0, 60) || "Phản hồi đã lưu",
       sourceType: "chat" as const,
       outputMarkdown: item.content,
       createdAt: new Date().toISOString()
@@ -178,17 +168,17 @@ export default function App() {
       }
 
       if (!response?.text) {
-        setError("This page did not return readable content.");
+        setError("Trang này không có nội dung đọc được.");
         return;
       }
 
       sendPrompt(
         [
-          "Read this page and summarize it from a CEO perspective.",
+          "Đọc trang này và tóm tắt từ góc nhìn CEO.",
           "",
-          `Title: ${response.title}`,
+          `Tiêu đề: ${response.title}`,
           `URL: ${response.url}`,
-          response.warnings?.length ? `Warnings: ${response.warnings.join(" ")}` : "",
+          response.warnings?.length ? `Cảnh báo: ${response.warnings.join(" ")}` : "",
           "",
           response.text
         ]
@@ -196,7 +186,7 @@ export default function App() {
           .join("\n")
       );
     } catch {
-      setError("Failed to read page.");
+      setError("Không thể đọc trang.");
     } finally {
       setReadingPage(false);
     }
@@ -212,10 +202,10 @@ export default function App() {
         }
       })
       .catch(() => undefined);
-  }, [settings?.openaiApiKey]);
+  }, [settings?.providerId, selectedModel]);
 
   if (!settings) {
-    return <main className="min-h-screen bg-zinc-950 p-4 text-sm text-zinc-300">Loading...</main>;
+    return <main className="min-h-screen bg-zinc-950 p-4 text-sm text-zinc-300">Đang tải...</main>;
   }
 
   return (
@@ -229,18 +219,20 @@ export default function App() {
         <>
           {missingApiKey ? (
             <section className="p-3 text-sm text-amber-100">
-              {settings?.provider === "custom"
-                ? "Add your API key in Settings for the custom provider before sending requests."
-                : "Add your OpenAI API key in Settings before sending requests."}
+              {provider ? `Thêm khóa API cho ${provider.label} trong Cài đặt trước khi gửi.` : "Chọn nhà cung cấp trong Cài đặt trước khi gửi."}
+            </section>
+          ) : missingModel ? (
+            <section className="p-3 text-sm text-amber-100">
+              {provider ? `Chọn mô hình cho ${provider.label} trong Cài đặt trước khi gửi.` : "Chọn nhà cung cấp trong Cài đặt trước khi gửi."}
             </section>
           ) : null}
           <section className="flex-1 space-y-3 overflow-auto p-3" aria-live="polite" aria-relevant="additions">
-            {messages.length === 0 ? <p className="text-sm text-zinc-400">Ask about the page, selected text, or your work.</p> : null}
+            {messages.length === 0 ? <p className="text-sm text-zinc-400">Hỏi về trang, văn bản đã chọn, hoặc công việc của bạn.</p> : null}
             {messages.map((item) => (
               <ChatMessage key={item.id} role={item.role} content={item.content} onSave={item.role === "assistant" ? () => saveMessage(item) : undefined} />
             ))}
           </section>
-          <ChatComposer disabled={streaming || missingApiKey} onSend={sendPrompt} />
+          <ChatComposer disabled={streaming || missingApiKey || missingModel} onSend={sendPrompt} />
         </>
       ) : null}
     </main>
