@@ -23,8 +23,6 @@
 | `error` | `#EF4444` | Errors |
 | `text-primary` | `#FAFAF9` | Main text |
 | `text-secondary` | `#A8A29E` | Secondary text |
-| `ai-bubble-bg` | `#292524` | AI message bubble |
-
 Replace Zinc cool grays with warm Stone tones throughout.
 
 ### Typography & Geometry
@@ -40,7 +38,7 @@ Replace Zinc cool grays with warm Stone tones throughout.
 ## 2. Header Navigation
 
 - Brand "AI Cá Nhân" with small robot icon (inline SVG, primary tint) + subtle text glow on hover
-- Tab items: icon-only buttons (SVG inline) with tooltip text on hover
+- Tab items: icon-only buttons (SVG inline) with `title` attribute for native tooltip
   - 📄 Đọc trang (file-text icon)
   - 📋 Mẫu lệnh (list icon)
   - 💾 Đã lưu (bookmark icon)
@@ -57,7 +55,8 @@ Replace Zinc cool grays with warm Stone tones throughout.
 - Messages displayed as chat bubbles (messenger-style)
 - **User bubble:** right-aligned, `bg-primary`, `text-primary` white, `rounded-2xl rounded-br-md`, max-width 80%
 - **AI bubble:** left-aligned, `bg-surface` `border border-stone-700/50`, `rounded-2xl rounded-bl-md`, max-width 85%
-- AI avatar: small robot icon (primary tint) above/next to bubble, `w-6 h-6`
+- AI avatar: small robot icon (primary tint) to the left of AI bubble, vertically centered, `w-6 h-6 flex-shrink-0`
+- AI message row layout: `[avatar] [bubble]` with `gap-2`
 - Timestamp: shown only when gap > 5 min, `text-xs text-secondary`, centered between groups
 
 ### Typing Indicator
@@ -71,7 +70,8 @@ Replace Zinc cool grays with warm Stone tones throughout.
 - Large chat bubble icon (central, `text-stone-700`), `w-16 h-16`
 - Text: "Hỏi về trang, văn bản đã chọn, hoặc công việc của bạn."
 - 2-3 quick action chips: "📝 Tóm tắt trang này", "💡 Phân tích đoạn văn"
-  - Chips: `bg-surface` `hover:bg-surface-hover` `rounded-full` `px-3 py-1.5 text-xs`
+  - Chips: `bg-surface` `hover:bg-surface-hover active:scale-95 rounded-full px-3 py-1.5 text-xs transition-all cursor-pointer`
+  - On click → fills composer with preset prompt text
 
 ### Animations
 - New user message: slide-in from right (`translateX(20px) → 0`, `opacity 0→1`, 200ms)
@@ -108,15 +108,14 @@ Replace Zinc cool grays with warm Stone tones throughout.
 - Result fades out after 5 seconds (auto-clear)
 
 ### Read Page (Header)
-- Button icon → spinner animation (SVG rotating ring)
-- No text change needed — icon alone communicates state
+- See Section 2 — button icon transitions to spinner animation (SVG rotating ring)
 
 ---
 
 ## 6. Settings Panel
 
 - Sections separated by `border-t border-stone-800` dividers, `py-4`
-- **Provider select:** card-like container `bg-surface rounded-xl p-3`, select with custom chevron, provider icon SVG
+- **Provider select:** card-like container `bg-surface rounded-xl p-3`, native `<select>` with `appearance-none` + custom chevron SVG background, provider icon SVG
 - **API Key input:** container `bg-surface rounded-xl p-3`, input with lock icon on left, eye toggle (show/hide) on right
 - **Security notice:** `bg-stone-800/50 border border-stone-700 rounded-lg px-3 py-2 text-xs text-secondary`, shield icon
 - **Model select:** full-width select with skeleton placeholder while loading
@@ -128,7 +127,7 @@ Replace Zinc cool grays with warm Stone tones throughout.
 ## 7. Prompt Manager & Saved Results
 
 ### Prompt Manager
-- **Add button:** `fixed` top, `bg-primary hover:bg-primary-light text-white rounded-full px-4 py-2 text-sm` with "+" icon
+- **Add button:** `sticky top-0 z-10`, `bg-primary hover:bg-primary-light text-white rounded-full px-4 py-2 text-sm transition-colors` with "+" icon
 - **Prompt cards:** `bg-surface rounded-xl p-4`, border `border-stone-800`
 - Name: `text-sm font-medium text-primary` (editable inline via click → input)
 - Instruction: textarea `bg-warm-bg border border-stone-700 rounded-lg p-2 text-sm min-h-[80px]`
@@ -182,7 +181,6 @@ Actions (preserved):
 - Test skeleton states render and disappear after data loads
 - Test selection toolbar entry/exit animations (timeout-based)
 - Test bubble layout (user/AI alignment)
-- Test dark mode consistency
 
 ---
 
