@@ -81,6 +81,8 @@ export function FloatingWindow(props: {
   const dragRef = useRef<{ startX: number; startY: number; startTop: number; startLeft: number } | null>(null);
   // Resize state
   const resizeRef = useRef<{ startX: number; startY: number; startWidth: number; startHeight: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sizeRef = useRef({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
 
   // Clamp position to viewport
   const clampToViewport = useCallback((top: number, left: number, w?: number, h?: number) => {
@@ -185,24 +187,41 @@ export function FloatingWindow(props: {
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (windowState !== "default") return;
-    resizeRef.current = { startX: e.clientX, startY: e.clientY, startWidth: size.width, startHeight: size.height };
+    const el = containerRef.current;
+    if (!el) return;
+
+    resizeRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      startWidth: sizeRef.current.width,
+      startHeight: sizeRef.current.height,
+    };
+
+    document.body.style.cursor = "nwse-resize";
+    document.body.style.userSelect = "none";
 
     const handleMouseMove = (ev: MouseEvent) => {
       if (!resizeRef.current) return;
-      const newWidth = Math.max(MIN_WIDTH, resizeRef.current.startWidth + (ev.clientX - resizeRef.current.startX));
-      const newHeight = Math.max(MIN_HEIGHT, resizeRef.current.startHeight + (ev.clientY - resizeRef.current.startY));
-      setSize({ width: newWidth, height: newHeight });
+      const dx = ev.clientX - resizeRef.current.startX;
+      const dy = ev.clientY - resizeRef.current.startY;
+      const newWidth = Math.max(MIN_WIDTH, resizeRef.current.startWidth + dx);
+      const newHeight = Math.max(MIN_HEIGHT, resizeRef.current.startHeight + dy);
+      el.style.width = `${newWidth}px`;
+      el.style.height = `${newHeight}px`;
+      sizeRef.current = { width: newWidth, height: newHeight };
     };
 
     const handleMouseUp = () => {
+      setSize(sizeRef.current);
       resizeRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-  }, [size, windowState]);
+  }, [windowState]);
 
   // Compute container styles
   let containerStyle: React.CSSProperties;
@@ -250,18 +269,30 @@ export function FloatingWindow(props: {
     }
   };
 
-  const handleMaximize = () => {
+  const handleMaximize = useCallback(() => {
     if (windowState === "maximized") {
       setWindowState("default");
       setPos(defaultPosRef.current);
       setSize({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+      sizeRef.current = { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
     } else {
       setWindowState("maximized");
     }
-  };
+  }, [windowState]);
+
+  // Cleanup resize listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeRef.current) {
+        resizeRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    };
+  }, []);
 
   return (
-    <div style={containerStyle} onKeyDown={handleKeyDown} tabIndex={0}>
+    <div style={containerStyle} onKeyDown={handleKeyDown} tabIndex={0} ref={containerRef as React.RefObject<HTMLDivElement>}>
       <WindowHeader
         title={windowState === "minimized" ? "AI" : "AI Assistant"}
         windowState={windowState}
