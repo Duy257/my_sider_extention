@@ -96,7 +96,9 @@ export function FloatingWindow(props: {
   }, [size]);
 
   // AI stream via port
+  const isDoneRef = useRef(false);
   useEffect(() => {
+    isDoneRef.current = false;
     let port: chrome.runtime.Port;
     try {
       port = chrome.runtime.connect({ name: AI_STREAM_PORT });
@@ -107,7 +109,7 @@ export function FloatingWindow(props: {
     }
 
     port.onDisconnect.addListener(() => {
-      if (chrome.runtime.lastError && streamState !== "done") {
+      if (chrome.runtime.lastError && !isDoneRef.current) {
         setStreamState("error");
         setErrorMessage(chrome.runtime.lastError.message || "Mất kết nối.");
       }
@@ -122,11 +124,13 @@ export function FloatingWindow(props: {
       }
 
       if (message.type === "AI_STREAM_DONE") {
+        isDoneRef.current = true;
         setStreamState("done");
         port.disconnect();
       }
 
       if (message.type === "AI_STREAM_ERROR") {
+        isDoneRef.current = true;
         setStreamState("error");
         setErrorMessage(message.message);
         port.disconnect();
@@ -142,7 +146,7 @@ export function FloatingWindow(props: {
     return () => {
       try { port.disconnect(); } catch {}
     };
-  }, [props.requestId, props.prompt, streamState]);
+  }, [props.requestId, props.prompt]);
 
   // Keyboard event handlers
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

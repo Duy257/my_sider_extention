@@ -31,6 +31,11 @@ export function mountFloatingWindow(options: MountOptions) {
   // Inject custom keyframes for loading dots and fade animations
   const style = document.createElement("style");
   style.textContent = `
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
     @keyframes floating-dot-bounce {
       0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
       40% { transform: scale(1); opacity: 1; }
