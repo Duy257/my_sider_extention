@@ -75,6 +75,29 @@ const handleResizeStart = useCallback((e) => {
   document.addEventListener("mousemove", handleMouseMove);
   document.addEventListener("mouseup", handleMouseUp);
 }, [windowState]); // ✅ No size dependency — stable callback
+
+// Sync sizeRef on maximize restore
+const handleMaximize = () => {
+  if (windowState === "maximized") {
+    setWindowState("default");
+    setPos(defaultPosRef.current);
+    setSize({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+    sizeRef.current = { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }; // ✅ sync ref
+  } else {
+    setWindowState("maximized");
+  }
+};
+
+// Cleanup listeners on unmount
+useEffect(() => {
+  return () => {
+    if (resizeRef.current) {
+      resizeRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+  };
+}, []);
 ```
 
 ## Changes Summary
@@ -86,12 +109,14 @@ const handleResizeStart = useCallback((e) => {
 | Item | Change |
 |------|--------|
 | `containerRef` | New `useRef<HTMLDivElement>` on root div |
-| `sizeRef` | New `useRef` tracking actual dimensions during resize |
+| `sizeRef` | New `useRef` tracking actual dimensions during resize; synced on maximize/restore |
 | `handleResizeStart` | Rewritten for ref-based DOM; deps reduced from `[size, windowState]` to `[windowState]` |
 | `handleMouseMove` handler | Writes to `el.style.width/height` + `sizeRef.current` — no setState |
 | `handleMouseUp` handler | Commits `sizeRef.current` to state via `setSize` |
 | Global cursor | Sets `document.body.style.cursor` during resize |
 | `user-select` | Disables text selection on body during resize |
+| `handleMaximize` | Added `sizeRef.current = { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }` on restore |
+| `useEffect` cleanup | Cleanup resize listeners and reset body styles if component unmounts during resize |
 
 ### What Stays Same
 - `handleResizeStart` signature (still returns nothing, still passed to bottom-right handle)
@@ -107,6 +132,8 @@ const handleResizeStart = useCallback((e) => {
 2. **Text selection prevention**: `userSelect = "none"` prevents unwanted selection during fast drags
 3. **Container mount safety**: `containerRef.current` null-check before access
 4. **Maximized/minimized**: Guarded by `windowState !== "default"` return
+5. **sizeRef sync on maximize restore**: `sizeRef` updated alongside `setSize` in `handleMaximize` — prevents stale ref on subsequent resize
+6. **Unmount safety**: `useEffect` cleanup clears resize listeners and resets body styles if component unmounts during active resize
 
 ## Testing
 
