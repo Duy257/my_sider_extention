@@ -22,8 +22,9 @@ async function injectContentAgent(tabId: number) {
 }
 
 export default defineBackground(() => {
-  chrome.runtime.onInstalled.addListener(() => {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  // Inject content script on extension icon click (replaces side panel activation)
+  chrome.action.onClicked.addListener((tab) => {
+    if (tab.id) injectContentAgent(tab.id);
   });
 
   chrome.runtime.onConnect.addListener((port) => {
@@ -80,8 +81,6 @@ export default defineBackground(() => {
     });
   });
 
-  const pendingSelectionPrompts: { requestId: string; prompt: string; title: string }[] = [];
-
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "ACTIVATE_ACTIVE_TAB_AGENT") {
       getActiveTab()
@@ -120,29 +119,17 @@ export default defineBackground(() => {
     }
 
     if (message.type === "SELECTION_ACTION") {
-      pendingSelectionPrompts.push({
-        requestId: message.requestId,
-        prompt: message.prompt,
-        title: message.title
-      });
+      // Forward to the active tab's content script (instead of side panel)
       if (sender.tab?.id) {
-        chrome.sidePanel.open({ tabId: sender.tab.id }).catch((err) =>
-          console.warn("Failed to open side panel:", err)
-        );
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "FORWARD_SELECTION_ACTION",
+          requestId: message.requestId,
+          prompt: message.prompt,
+          title: message.title,
+          actionPosition: { top: message.position?.top ?? 200, left: message.position?.left ?? 200 }
+        }).catch(() => undefined);
       }
-      chrome.runtime.sendMessage({
-        type: "FORWARD_SELECTION_ACTION",
-        requestId: message.requestId,
-        prompt: message.prompt,
-        title: message.title
-      }).catch(() => undefined);
       sendResponse({ ok: true });
-      return true;
-    }
-
-    if (message.type === "GET_PENDING_SELECTION_PROMPT") {
-      const value = pendingSelectionPrompts.shift() ?? null;
-      sendResponse(value);
       return true;
     }
 

@@ -13,6 +13,7 @@ export type ExtensionMessage =
       url: string;
       title: string;
       prompt: string;
+      position: { top: number; left: number };
     }
   | { type: "GET_PENDING_SELECTION_PROMPT" }
   | { type: "SELECTION_TOO_LONG"; requestId: string; maxLength: number }
@@ -24,6 +25,7 @@ export type ExtensionMessage =
       requestId: string;
       prompt: string;
       title: string;
+      actionPosition: { top: number; left: number };
     };
 
 export type AiPortRequest = {

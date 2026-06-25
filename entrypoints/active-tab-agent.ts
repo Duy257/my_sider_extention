@@ -2,6 +2,7 @@ import { extractPageContent } from "../src/lib/extraction";
 import { buildSelectionPrompt } from "../src/lib/prompts/builders";
 import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../src/lib/selection/toolbar";
 import type { SelectionAction } from "../src/lib/selection/types";
+import { mountFloatingWindow } from "../src/lib/floating-window/mount";
 
 export default defineUnlistedScript(() => {
   if (window.__personalAiSidebarAgentInstalled) return;
@@ -60,6 +61,7 @@ export default defineUnlistedScript(() => {
   }
 
   function sendSelectionAction(action: SelectionAction, text: string) {
+    const pos = selectionPosition();
     chrome.runtime.sendMessage({
       type: "SELECTION_ACTION",
       requestId: crypto.randomUUID(),
@@ -67,7 +69,8 @@ export default defineUnlistedScript(() => {
       text,
       url: window.location.href,
       title: document.title || "Untitled page",
-      prompt: buildSelectionPrompt(action, text)
+      prompt: buildSelectionPrompt(action, text),
+      position: { top: pos.top, left: pos.left }
     });
   }
 
@@ -131,12 +134,23 @@ export default defineUnlistedScript(() => {
   window.addEventListener("resize", removeToolbar);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === "FORWARD_SELECTION_ACTION") {
+      mountFloatingWindow({
+        position: message.actionPosition ?? { top: 200, left: 200 },
+        prompt: message.prompt,
+        requestId: message.requestId,
+        title: message.title,
+      });
+      sendResponse({ ok: true });
+      return true;
+    }
     if (message.type === "EXTRACT_PAGE_CONTENT") {
       try {
         sendResponse(extractPageContent(window.location.href));
       } catch (e) {
         sendResponse({ error: String(e) });
       }
+      return true;
     }
     return true;
   });
