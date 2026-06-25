@@ -240,7 +240,7 @@ export default function App() {
       
       {error ? (
         <div className="mx-3 mt-3 flex items-center gap-2.5 rounded-xl border border-red-900/30 bg-red-950/20 px-3.5 py-2.5 text-xs text-red-400 animate-fade-in-up">
-          <svg className="h-4.5 w-4.5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <svg className="h-5 w-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span className="flex-1 font-medium">{error}</span>
