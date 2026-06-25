@@ -46,7 +46,7 @@ describe("SettingsPanel", () => {
   });
 
   it("loads models and selects first returned model", async () => {
-    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: true, models: ["model-a", "model-b"] });
+    vi.mocked(chrome.runtime.sendMessage as any).mockResolvedValue({ ok: true, models: ["model-a", "model-b"] });
     const onChange = vi.fn();
     render(<SettingsPanel settings={settings({ apiKeys: { openai: "sk" } })} onChange={onChange} />);
 
@@ -62,7 +62,7 @@ describe("SettingsPanel", () => {
   });
 
   it("sends test connection without urls or keys", async () => {
-    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: true });
+    vi.mocked(chrome.runtime.sendMessage as any).mockResolvedValue({ ok: true });
     render(<SettingsPanel settings={settings({ apiKeys: { openai: "sk" }, selectedModels: { openai: "gpt-5.4-mini" } })} onChange={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Kiểm tra kết nối/i }));

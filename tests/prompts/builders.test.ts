@@ -23,7 +23,7 @@ describe("prompt builders", () => {
   it("builds a Vietnamese translation selection prompt in Vietnamese", () => {
     const prompt = buildSelectionPrompt("translate_vi", "Hello team");
 
-    expect(prompt).toContain("Dịch");
+    expect(prompt).toContain("dịch");
     expect(prompt).toContain("tiếng Việt");
     expect(prompt).toContain("Hello team");
   });

@@ -15,10 +15,21 @@ const injectedTabs = new Set<number>();
 async function injectContentAgent(tabId: number) {
   if (injectedTabs.has(tabId)) return;
   injectedTabs.add(tabId);
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ["/active-tab-agent.js"]
-  });
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["/active-tab-agent.js"]
+    });
+    // Set badge text to ON to give visual feedback to the user
+    chrome.action.setBadgeText({ tabId, text: "ON" });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#8B5CF6" }); // Violet color
+  } catch (err) {
+    injectedTabs.delete(tabId);
+    console.error("Failed to inject content agent:", err);
+    // Set badge text to ERR to indicate failure (e.g. on chrome:// pages)
+    chrome.action.setBadgeText({ tabId, text: "ERR" });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#EF4444" }); // Red color
+  }
 }
 
 export default defineBackground(() => {
@@ -80,8 +91,6 @@ export default defineBackground(() => {
     });
   });
 
-  const pendingSelectionPrompts: { requestId: string; prompt: string; title: string }[] = [];
-
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "ACTIVATE_ACTIVE_TAB_AGENT") {
       getActiveTab()
@@ -120,29 +129,17 @@ export default defineBackground(() => {
     }
 
     if (message.type === "SELECTION_ACTION") {
-      pendingSelectionPrompts.push({
-        requestId: message.requestId,
-        prompt: message.prompt,
-        title: message.title
-      });
+      // Forward to the active tab's content script (instead of side panel)
       if (sender.tab?.id) {
-        chrome.sidePanel.open({ tabId: sender.tab.id }).catch((err) =>
-          console.warn("Failed to open side panel:", err)
-        );
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "FORWARD_SELECTION_ACTION",
+          requestId: message.requestId,
+          prompt: message.prompt,
+          title: message.title,
+          actionPosition: { top: message.position?.top ?? 200, left: message.position?.left ?? 200 }
+        }).catch(() => undefined);
       }
-      chrome.runtime.sendMessage({
-        type: "FORWARD_SELECTION_ACTION",
-        requestId: message.requestId,
-        prompt: message.prompt,
-        title: message.title
-      }).catch(() => undefined);
       sendResponse({ ok: true });
-      return true;
-    }
-
-    if (message.type === "GET_PENDING_SELECTION_PROMPT") {
-      const value = pendingSelectionPrompts.shift() ?? null;
-      sendResponse(value);
       return true;
     }
 

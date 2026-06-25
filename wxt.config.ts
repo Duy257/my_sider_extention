@@ -4,7 +4,7 @@ export default defineConfig({
   modules: ["@wxt-dev/module-react"],
   manifest: {
     name: "Personal AI Sidebar",
-    description: "Private AI sidebar for reading, rewriting, summarizing, and analysis workflows.",
+    description: "Private AI assistant for reading, rewriting, summarizing, and analysis workflows.",
     version: "0.1.0",
     permissions: ["storage", "activeTab", "sidePanel", "scripting"],
     host_permissions: ["https://api.openai.com/*", "https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
@@ -12,7 +12,7 @@ export default defineConfig({
       default_path: "sidepanel.html"
     },
     action: {
-      default_title: "Open Personal AI Sidebar"
+      default_title: "Personal AI Sidebar"
     }
   }
 });
