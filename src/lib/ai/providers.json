@@ -20,8 +20,8 @@
   {
     "id": "commandcode",
     "label": "CommandCode",
-    "base_url": "https://api.commandcode.ai/v1/chat/completions",
-    "model_url": "https://api.commandcode.ai/v1/models",
+    "base_url": "https://api.commandcode.ai/provider/v1/chat/completions",
+    "model_url": "https://api.commandcode.ai/provider/v1/models",
     "requires_api_key": true,
     "default_model": "command-r-plus",
     "known_models": ["command-r-plus", "command-r", "command-light"]

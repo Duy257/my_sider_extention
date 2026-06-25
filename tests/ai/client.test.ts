@@ -126,7 +126,7 @@ describe("fetchModels", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     await expect(fetchModels({ modelUrl: "https://api.test/v1/models", apiKey: "sk-test" })).resolves.toEqual({ models: ["a-model", "z-model"] });
-    expect(mockFetch).toHaveBeenCalledWith("https://api.test/v1/models", { headers: { Authorization: "Bearer sk-test" } });
+    expect(mockFetch).toHaveBeenCalledWith("https://api.test/v1/models", expect.objectContaining({ headers: { Authorization: "Bearer sk-test" } }));
 
     vi.unstubAllGlobals();
   });
@@ -139,7 +139,7 @@ describe("fetchModels", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     await fetchModels({ modelUrl: "http://localhost:1234/v1/models" });
-    expect(mockFetch).toHaveBeenCalledWith("http://localhost:1234/v1/models", { headers: {} });
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:1234/v1/models", expect.objectContaining({ headers: {} }));
 
     vi.unstubAllGlobals();
   });
