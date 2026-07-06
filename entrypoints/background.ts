@@ -3,6 +3,20 @@ import { resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest } from "../src/lib/messaging/types";
 import { getSettings } from "../src/lib/storage";
+import type { Settings } from "../src/lib/storage/types";
+
+let settingsCache: { settings: Settings; timestamp: number } | null = null;
+const SETTINGS_CACHE_TTL = 5_000; // 5 seconds
+
+async function getCachedSettings(): Promise<Settings> {
+  const now = Date.now();
+  if (settingsCache && (now - settingsCache.timestamp) < SETTINGS_CACHE_TTL) {
+    return settingsCache.settings;
+  }
+  const settings = await getSettings();
+  settingsCache = { settings, timestamp: now };
+  return settings;
+}
 
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -57,7 +71,7 @@ export default defineBackground(() => {
       };
 
       try {
-        const settings = await getSettings();
+        const settings = await getCachedSettings();
         const runtime = resolveProviderRuntimeConfig(settings);
 
         if (!runtime.ok) {
@@ -72,6 +86,10 @@ export default defineBackground(() => {
           messages: message.messages,
           signal: controller.signal,
           callbacks: {
+            onConnecting: () =>
+              send({ type: "AI_STREAM_CONNECTING", requestId: message.requestId }),
+            onFirstToken: () =>
+              send({ type: "AI_STREAM_FIRST_TOKEN", requestId: message.requestId }),
             onDelta: (delta) =>
               send({ type: "AI_STREAM_CHUNK", requestId: message.requestId, delta }),
             onDone: () => send({ type: "AI_STREAM_DONE", requestId: message.requestId }),
@@ -161,6 +179,12 @@ export default defineBackground(() => {
           sendResponse({ error: lastError instanceof Error ? lastError.message : "Content script not ready after retries." });
         })
         .catch((error) => sendResponse({ error: error instanceof Error ? error.message : "Page extraction failed." }));
+      return true;
+    }
+
+    if (message.type === "SETTINGS_UPDATED") {
+      settingsCache = null;
+      sendResponse({ ok: true });
       return true;
     }
 

@@ -26,7 +26,8 @@ export type ExtensionMessage =
       prompt: string;
       title: string;
       actionPosition: { top: number; left: number };
-    };
+    }
+  | { type: "SETTINGS_UPDATED" };
 
 export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
@@ -35,6 +36,8 @@ export type AiPortRequest = {
 };
 
 export type AiPortResponse =
+  | { type: "AI_STREAM_CONNECTING"; requestId: string }
+  | { type: "AI_STREAM_FIRST_TOKEN"; requestId: string }
   | { type: "AI_STREAM_CHUNK"; requestId: string; delta: string }
   | { type: "AI_STREAM_DONE"; requestId: string }
   | { type: "AI_STREAM_ERROR"; requestId: string; message: string };

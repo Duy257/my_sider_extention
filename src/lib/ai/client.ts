@@ -3,8 +3,9 @@
 import { mapStreamError } from "./stream";
 import type { AiMessage } from "./types";
 
-// Thời gian timeout mặc định cho mọi request AI: 30 giây
-const REQUEST_TIMEOUT = 30_000;
+// Thời gian timeout mặc định cho mọi request AI: 20 giây
+const REQUEST_TIMEOUT = 20_000;
+const FIRST_TOKEN_TIMEOUT = 15_000;
 
 // Tạo headers HTTP cho request AI
 // - Nếu có API key: thêm header Authorization Bearer
@@ -32,35 +33,55 @@ async function fetchWithTimeout(
   options: RequestInit & { timeout?: number },
 ): Promise<Response> {
   const timeout = options.timeout ?? REQUEST_TIMEOUT;
-  const { signal: timeoutSignal, clear } = createTimeoutSignal(timeout);
+  const { signal: timeoutSignal, clear: clearTimer } = createTimeoutSignal(timeout);
+  const combined = options.signal
+    ? createCombinedAbortSignal(options.signal, timeoutSignal)
+    : { signal: timeoutSignal, cleanup: () => {} };
+
   try {
-    const combinedSignal = options.signal
-      ? combineAbortSignals(options.signal, timeoutSignal)
-      : timeoutSignal;
-    return await fetch(url, { ...options, signal: combinedSignal });
+    return await fetch(url, { ...options, signal: combined.signal });
   } finally {
-    clear(); // Luôn dọn timer, kể cả khi thành công hay lỗi
+    clearTimer();
+    combined.cleanup();
   }
 }
 
 // Kết hợp nhiều AbortSignal thành một signal duy nhất
 // Nếu bất kỳ signal nào bị abort, signal tổng hợp cũng bị abort
-function combineAbortSignals(...signals: AbortSignal[]): AbortSignal {
+// Trả về cả cleanup function để dọn dẹp event listener
+function createCombinedAbortSignal(
+  ...signals: AbortSignal[]
+): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
+  const handlers: Array<{ signal: AbortSignal; handler: () => void }> = [];
+
   for (const signal of signals) {
-    // Nếu signal đã bị abort ngay từ đầu, abort ngay lập tức
     if (signal.aborted) {
       controller.abort(signal.reason);
-      return controller.signal;
+      for (const { signal: s, handler: h } of handlers) {
+        s.removeEventListener("abort", h);
+      }
+      return { signal: controller.signal, cleanup: () => {} };
     }
-    // Lắng nghe sự kiện abort trên từng signal
-    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+    const handler = () => controller.abort(signal.reason);
+    signal.addEventListener("abort", handler, { once: true });
+    handlers.push({ signal, handler });
   }
-  return controller.signal;
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const { signal: s, handler: h } of handlers) {
+        s.removeEventListener("abort", h);
+      }
+    }
+  };
 }
 
 // Callbacks cho quá trình stream AI
 type StreamCallbacks = {
+  onConnecting?: () => void;   // đang kết nối đến provider
+  onFirstToken?: () => void;   // nhận được token đầu tiên
   onDelta: (delta: string) => void;   // nhận được một phần nội dung text
   onDone: () => void;                  // stream hoàn tất
   onError: (message: string) => void;  // có lỗi xảy ra
@@ -77,8 +98,14 @@ export async function streamChatCompletion(input: {
   signal?: AbortSignal;     // signal để hủy request từ bên ngoài
   callbacks: StreamCallbacks;
 }): Promise<void> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+  let isWatchdogTimeout = false;
+  let hasReceivedFirstToken = false;
+
   try {
-    // Gửi POST request với timeout
+    // Gửi POST request với timeout (fetchWithTimeout tự combine signal)
+    // input.signal (từ port disconnect) chỉ ảnh hưởng đến fetch, không ảnh hưởng đến reader
     const response = await fetchWithTimeout(input.baseUrl, {
       method: "POST",
       signal: input.signal,
@@ -101,24 +128,41 @@ export async function streamChatCompletion(input: {
           errorMessage = parsed.error.message;
         }
       } catch {}
-      input.callbacks.onError(errorMessage);
+      try { input.callbacks.onError(errorMessage); } catch {}
       return;
     }
 
     // Kiểm tra response body có tồn tại không
     if (!response.body) {
-      input.callbacks.onError("No response body received from the AI provider.");
+      try { input.callbacks.onError("No response body received from the AI provider."); } catch {}
       return;
     }
 
+    // Thông báo đã kết nối thành công đến provider
+    try { input.callbacks.onConnecting?.(); } catch {}
+
     // === ĐỌC STREAM SSE (Server-Sent Events) ===
-    const reader = response.body.getReader();
+    reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = ""; // Buffer cho các dòng SSE chưa hoàn chỉnh
+
+    // Watchdog: hủy reader nếu không nhận được token đầu tiên trong FIRST_TOKEN_TIMEOUT
+    // Dùng reader.cancel() thay vì AbortSignal vì AbortSignal không ảnh hưởng đến reader.read()
+    watchdogTimer = setTimeout(() => {
+      isWatchdogTimeout = true;
+      reader?.cancel().catch(() => {});
+    }, FIRST_TOKEN_TIMEOUT);
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+
+      // Kiểm tra nếu bị hủy từ bên ngoài (port disconnect / cancel button)
+      // input.signal.aborted được set bởi controller.abort() trong background.ts
+      if (input.signal?.aborted && !isWatchdogTimeout) {
+        reader.cancel().catch(() => {});
+        return; // AbortError — không cần thông báo
+      }
 
       // Giải mã chunk byte thành text, stream: true giữ lại ký tự chưa hoàn chỉnh
       buffer += decoder.decode(value, { stream: true });
@@ -135,6 +179,7 @@ export async function streamChatCompletion(input: {
 
         // Tín hiệu kết thúc stream
         if (data === "[DONE]") {
+          clearTimeout(watchdogTimer);
           try { input.callbacks.onDone(); } catch {}
           return;
         }
@@ -144,6 +189,12 @@ export async function streamChatCompletion(input: {
           const parsed = JSON.parse(data);
           const delta = parsed?.choices?.[0]?.delta?.content;
           if (delta) {
+            // Token đầu tiên — tắt watchdog và gọi onFirstToken
+            if (!hasReceivedFirstToken) {
+              hasReceivedFirstToken = true;
+              clearTimeout(watchdogTimer);
+              try { input.callbacks.onFirstToken?.(); } catch {}
+            }
             try { input.callbacks.onDelta(delta); } catch {}
           }
         } catch {
@@ -152,9 +203,22 @@ export async function streamChatCompletion(input: {
       }
     }
 
+    clearTimeout(watchdogTimer);
+
+    // Watchdog timeout — báo lỗi (reader đã bị cancel, stream kết thúc)
+    if (isWatchdogTimeout) {
+      try { input.callbacks.onError("Provider is too slow. No response after 15 seconds."); } catch {}
+      return;
+    }
+
     // Stream kết thúc tự nhiên (không có [DONE])
     try { input.callbacks.onDone(); } catch {}
   } catch (error) {
+    clearTimeout(watchdogTimer);
+
+    // Nếu watchdog đã xử lý lỗi, không report lỗi thứ cấp
+    if (isWatchdogTimeout) return;
+
     // Xử lý lỗi: ánh xạ sang thông báo thân thiện
     const mapped = mapStreamError(error);
     if (mapped) {

@@ -21,6 +21,8 @@ type ChatItem = {
   content: string;
 };
 
+type StreamingPhase = "idle" | "connecting" | "streaming";
+
 export default function App() {
   const [view, setView] = useState<HeaderView>("chat");
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -28,6 +30,8 @@ export default function App() {
   const [savedResults, setSavedResultsState] = useState<SavedResult[]>([]);
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [streamingPhase, setStreamingPhase] = useState<StreamingPhase>("idle");
+  const portRef = useRef<chrome.runtime.Port | null>(null);
   
   // Auto-dismissing error state implementation
   const [error, setErrorState] = useState("");
@@ -76,6 +80,7 @@ export default function App() {
   async function updateSettings(next: Settings) {
     setSettings(next);
     await saveSettings(next);
+    chrome.runtime.sendMessage({ type: "SETTINGS_UPDATED" }).catch(() => undefined);
   }
 
   async function updatePrompts(next: PromptTemplate[]) {
@@ -93,6 +98,7 @@ export default function App() {
     if (streaming) return;
     setError("");
     setStreaming(true);
+    setStreamingPhase("connecting");
 
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
@@ -105,14 +111,18 @@ export default function App() {
     let port: chrome.runtime.Port;
     try {
       port = chrome.runtime.connect({ name: AI_STREAM_PORT });
+      portRef.current = port;
     } catch {
       setStreaming(false);
+      setStreamingPhase("idle");
       setError("Không thể kết nối dịch vụ AI.");
       return;
     }
 
     port.onDisconnect.addListener(() => {
       setStreaming(false);
+      setStreamingPhase("idle");
+      portRef.current = null;
       if (chrome.runtime.lastError) {
         setError(chrome.runtime.lastError.message || "Mất kết nối.");
       }
@@ -120,6 +130,14 @@ export default function App() {
 
     port.onMessage.addListener((message: AiPortResponse) => {
       if (message.requestId !== requestId) return;
+
+      if (message.type === "AI_STREAM_CONNECTING") {
+        setStreamingPhase("connecting");
+      }
+
+      if (message.type === "AI_STREAM_FIRST_TOKEN") {
+        setStreamingPhase("streaming");
+      }
 
       if (message.type === "AI_STREAM_CHUNK") {
         setMessages((current) =>
@@ -129,11 +147,15 @@ export default function App() {
 
       if (message.type === "AI_STREAM_DONE") {
         setStreaming(false);
+        setStreamingPhase("idle");
+        portRef.current = null;
         port.disconnect();
       }
 
       if (message.type === "AI_STREAM_ERROR") {
         setStreaming(false);
+        setStreamingPhase("idle");
+        portRef.current = null;
         setError(message.message);
         port.disconnect();
       }
@@ -273,8 +295,23 @@ export default function App() {
               ))
             )}
             {streaming && messages.length > 0 && messages[messages.length - 1].content === "" ? (
-              <TypingIndicator />
+              <TypingIndicator phase={streamingPhase} />
             ) : null}
+            {streaming && streamingPhase === "connecting" && (
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    portRef.current?.disconnect();
+                    setStreaming(false);
+                    setStreamingPhase("idle");
+                    portRef.current = null;
+                  }}
+                  className="text-xs text-stone-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg border border-stone-800/50 hover:border-red-900/30 hover:bg-red-950/10"
+                >
+                  Hủy yêu cầu
+                </button>
+              </div>
+            )}
           </section>
           
           <ChatComposer

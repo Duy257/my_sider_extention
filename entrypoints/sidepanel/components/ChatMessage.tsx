@@ -65,7 +65,7 @@ export function ChatMessage(props: {
   );
 }
 
-export function TypingIndicator() {
+export function TypingIndicator({ phase = "connecting" }: { phase?: "idle" | "connecting" | "streaming" }) {
   return (
     <div className="flex items-start gap-2.5 animate-fade-in-up">
       <RobotAvatar />
@@ -75,7 +75,9 @@ export function TypingIndicator() {
           <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.2s" }} />
           <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.4s" }} />
         </div>
-        <div className="mt-1 text-[10px] text-stone-500 font-medium tracking-wide">đang trả lời...</div>
+        <div className="mt-1 text-[10px] text-stone-500 font-medium tracking-wide">
+          {phase === "connecting" ? "đang kết nối..." : "đang trả lời..."}
+        </div>
       </div>
     </div>
   );
