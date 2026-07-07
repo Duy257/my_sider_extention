@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { MessageContent } from "../../../src/lib/ui/MessageContent";
 
 function RobotAvatar() {
@@ -18,10 +18,50 @@ function RobotAvatar() {
 export function ChatMessage(props: {
   role: "user" | "assistant" | "system";
   content: string;
-  onSave?: () => void;
+  onSave?: () => void | Promise<void>;
+  onActionError?: (message: string) => void;
 }) {
   const isUser = props.role === "user";
   const isSystem = props.role === "system";
+
+  const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showTemporaryFeedback(type: "copied" | "saved") {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setCopied(type === "copied");
+    setSaved(type === "saved");
+    feedbackTimerRef.current = setTimeout(() => {
+      setCopied(false);
+      setSaved(false);
+    }, 1800);
+  }
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(props.content);
+      showTemporaryFeedback("copied");
+    } catch {
+      props.onActionError?.("Không thể sao chép nội dung.");
+    }
+  }
+
+  async function saveMessage() {
+    if (!props.onSave) return;
+    try {
+      await props.onSave();
+      showTemporaryFeedback("saved");
+    } catch {
+      props.onActionError?.("Không thể lưu kết quả.");
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
 
   if (isSystem) {
     return (
@@ -46,18 +86,24 @@ export function ChatMessage(props: {
         >
           <MessageContent content={props.content} />
         </div>
-        {!isUser && props.onSave && (
-          <div className="mt-1 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+        {!isUser && (
+          <div className={`mt-1 flex items-center gap-1 opacity-60 transition-opacity duration-200 group-hover:opacity-100 ${isUser ? "justify-end" : "justify-start"}`}>
             <button
-              className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 hover:bg-surface hover:border-stone-700/60 hover:text-stone-200 px-2 py-1 text-[11px] text-stone-400 font-medium transition-all duration-200"
-              title="Lưu"
-              onClick={props.onSave}
+              className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
+              title="Sao chép"
+              onClick={copyMessage}
             >
-              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>
-              Lưu kết quả
+              {copied ? "Đã sao chép" : "Sao chép"}
             </button>
+            {props.onSave ? (
+              <button
+                className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
+                title="Lưu"
+                onClick={saveMessage}
+              >
+                {saved ? "Đã lưu" : "Lưu kết quả"}
+              </button>
+            ) : null}
           </div>
         )}
       </div>
