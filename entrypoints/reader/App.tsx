@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { CompanionPanel } from "./components/CompanionPanel";
 import { ProgressBar } from "./components/ProgressBar";
 import { ReaderHeader } from "./components/ReaderHeader";
 import { ReaderView } from "./components/ReaderView";
@@ -72,7 +73,7 @@ export default function App() {
         saving={saveStatus === "saving"}
         saved={saveStatus === "saved"}
       />
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-auto">
           <ReaderView
             content={pageData.content}
@@ -80,6 +81,13 @@ export default function App() {
             url={pageData.url}
           />
         </main>
+        <aside className="hidden lg:block w-[340px] flex-shrink-0">
+          <CompanionPanel
+            pageContent={pageData.content}
+            title={pageData.title}
+            url={pageData.url}
+          />
+        </aside>
       </div>
     </div>
   );
