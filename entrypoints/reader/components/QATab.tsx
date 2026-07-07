@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AI_STREAM_PORT } from "../../../src/lib/messaging/ports";
 import type { AiPortResponse } from "../../../src/lib/messaging/types";
 import { buildUserChatMessages } from "../../../src/lib/prompts/builders";
+import { MessageContent } from "../../../src/lib/ui/MessageContent";
 
 type QAMessage = {
   id: string;
@@ -139,13 +140,15 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
                 : "mr-4 bg-surface border border-stone-850 text-stone-300 rounded-bl-none"
             }`}
           >
-            {msg.content || (msg.role === "assistant" && streaming && (
+            {msg.content ? (
+              <MessageContent content={msg.content} />
+            ) : msg.role === "assistant" && streaming ? (
               <span className="inline-flex gap-0.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0s" }} />
                 <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.2s" }} />
                 <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.4s" }} />
               </span>
-            ))}
+            ) : null}
           </div>
         ))}
         <div ref={messagesEndRef} />

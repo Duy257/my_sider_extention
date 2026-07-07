@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AI_STREAM_PORT } from "../../../src/lib/messaging/ports";
 import type { AiPortResponse } from "../../../src/lib/messaging/types";
 import { buildUserChatMessages } from "../../../src/lib/prompts/builders";
+import { MessageContent } from "../../../src/lib/ui/MessageContent";
 
 type SummaryLength = "short" | "medium" | "detailed";
 
@@ -116,11 +117,9 @@ export function SummaryTab({
 
 
       {summary ? (
-        <div className="rounded-xl border border-stone-850 bg-surface p-3.5">
-          <p className="text-[13px] leading-relaxed text-stone-200 whitespace-pre-wrap">
-            {summary}
-            {streaming && <span className="animate-pulse">|</span>}
-          </p>
+        <div className="rounded-xl border border-stone-850 bg-surface p-3.5 text-[13px] leading-relaxed">
+          <MessageContent content={summary} />
+          {streaming && <span className="animate-pulse text-stone-400">|</span>}
         </div>
       ) : streaming ? (
         <div className="flex items-center gap-2 text-xs text-stone-400">
