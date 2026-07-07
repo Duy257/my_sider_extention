@@ -60,11 +60,6 @@ export default function App() {
     await savePromptTemplates(next);
   }
 
-  async function updateSavedResults(next: SavedResult[]) {
-    setSavedResultsState(next);
-    await saveSavedResults(next);
-  }
-
   sendPromptRef.current = chat.sendPrompt;
 
   useEffect(() => {
@@ -90,7 +85,11 @@ export default function App() {
       outputMarkdown: item.content,
       createdAt: new Date().toISOString()
     };
-    await updateSavedResults([newResult, ...savedResults]);
+    setSavedResultsState((prev) => {
+      const updated = [newResult, ...prev];
+      saveSavedResults(updated);
+      return updated;
+    });
   }
 
   async function readPage() {
@@ -157,7 +156,13 @@ export default function App() {
 
       {view === "settings" ? <SettingsPanel settings={settings} onChange={updateSettings} /> : null}
       {view === "prompts" ? <PromptManager prompts={prompts} onChange={updatePrompts} /> : null}
-      {view === "saved" ? <SavedResults results={savedResults} onDelete={(id) => updateSavedResults(savedResults.filter((item) => item.id !== id))} /> : null}
+      {view === "saved" ? <SavedResults results={savedResults} onDelete={(id) => {
+        setSavedResultsState((prev) => {
+          const updated = prev.filter((item) => item.id !== id);
+          saveSavedResults(updated);
+          return updated;
+        });
+      }} /> : null}
       
       {view === "chat" ? (
         <>
