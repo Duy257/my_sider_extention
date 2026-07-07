@@ -5,10 +5,18 @@ function parseInline(text: string): React.ReactNode[] {
   const parts = text.split(regex);
   return parts.map((part, idx) => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={idx} className="font-bold text-stone-50">{part.slice(2, -2)}</strong>;
+      return (
+        <strong key={idx} className="font-bold text-stone-50">
+          {part.slice(2, -2)}
+        </strong>
+      );
     }
     if (part.startsWith("*") && part.endsWith("*")) {
-      return <em key={idx} className="italic text-stone-200">{part.slice(1, -1)}</em>;
+      return (
+        <em key={idx} className="italic text-stone-200">
+          {part.slice(1, -1)}
+        </em>
+      );
     }
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
@@ -49,7 +57,10 @@ export function MessageContent({ content }: { content: string }) {
   const flushCode = (k: number) => {
     if (!codeBlock) return null;
     const el = (
-      <div key={k} className="my-3 rounded-lg overflow-hidden border border-stone-800 bg-stone-950">
+      <div
+        key={k}
+        className="my-3 rounded-lg overflow-hidden border border-stone-800 bg-stone-950"
+      >
         {codeBlock.lang && (
           <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 bg-stone-900/80 border-b border-stone-800">
             {codeBlock.lang}
@@ -99,15 +110,16 @@ export function MessageContent({ content }: { content: string }) {
       const level = hMatch[1].length;
       const title = hMatch[2];
       const Tag = level === 1 ? "h1" : level === 2 ? "h2" : "h3";
-      const cls = level === 1
-        ? "text-base font-bold text-stone-50 mt-4 mb-2 pb-1 border-b border-stone-800/50"
-        : level === 2
-          ? "text-sm font-bold text-stone-50 mt-3 mb-1.5 pb-0.5 border-b border-stone-800/30"
-          : "text-[13px] font-bold text-stone-100 mt-3 mb-1";
+      const cls =
+        level === 1
+          ? "text-base font-bold text-stone-50 mt-4 mb-2 pb-1 border-b border-stone-800/50"
+          : level === 2
+            ? "text-sm font-bold text-stone-50 mt-3 mb-1.5 pb-0.5 border-b border-stone-800/30"
+            : "text-[13px] font-bold text-stone-100 mt-3 mb-1";
       elements.push(
         <Tag key={keyIndex++} className={cls}>
           {parseInline(title)}
-        </Tag>
+        </Tag>,
       );
       continue;
     }
@@ -120,7 +132,7 @@ export function MessageContent({ content }: { content: string }) {
     elements.push(
       <p key={keyIndex++} className="my-0.5 text-stone-200">
         {parseInline(line)}
-      </p>
+      </p>,
     );
   }
 
