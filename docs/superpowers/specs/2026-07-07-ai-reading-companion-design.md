@@ -15,7 +15,7 @@ In scope:
 - AI companion with three tabs: **Summary**, **Q&A**, **Inline Definition**.
 - Inline definition popover on text selection within reading view.
 - Three entry points: extension popup, side panel button, right-click context menu.
-- Manual save of reading session (summary + highlights + notes) to Saved Results.
+- Manual save of reading session (summary + page metadata) to Saved Results.
 - Communication: background extracts page content → passes to reader tab via messaging.
 
 Out of scope:
@@ -126,7 +126,7 @@ READER_DEFINITION_REQUEST    // reader → background: request inline definition
 ### Save session flow
 
 1. User clicks "Lưu session" button in ReaderHeader.
-2. Reader tab collects: page summary, any highlights/notes, page metadata.
+2. Reader tab collects: current summary (if any), page title, URL, date.
 3. Sends `READER_SAVE_SESSION` to background.
 4. Background persists as `{ sourceType: "reader", title, summary, url, date }` in saved results.
 5. Reader tab shows "Đã lưu" feedback.
