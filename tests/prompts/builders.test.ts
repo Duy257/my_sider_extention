@@ -35,4 +35,46 @@ describe("prompt builders", () => {
     expect(messages[0].content).toContain("trợ lý AI cá nhân");
     expect(messages[1]).toEqual({ role: "user", content: "Giải thích điều này" });
   });
+
+  it("includes recent chat history before the new user message", () => {
+    const messages = buildUserChatMessages("Tiếp tục", [
+      { role: "user", content: "Câu hỏi trước" },
+      { role: "assistant", content: "Câu trả lời trước" }
+    ]);
+
+    expect(messages).toEqual([
+      expect.objectContaining({ role: "system" }),
+      { role: "user", content: "Câu hỏi trước" },
+      { role: "assistant", content: "Câu trả lời trước" },
+      { role: "user", content: "Tiếp tục" }
+    ]);
+  });
+
+  it("filters empty assistant placeholders from chat history", () => {
+    const messages = buildUserChatMessages("Câu mới", [
+      { role: "assistant", content: "" },
+      { role: "assistant", content: "   " },
+      { role: "user", content: "Câu cũ" }
+    ]);
+
+    expect(messages).toEqual([
+      expect.objectContaining({ role: "system" }),
+      { role: "user", content: "Câu cũ" },
+      { role: "user", content: "Câu mới" }
+    ]);
+  });
+
+  it("caps chat history to the latest twelve non-empty messages", () => {
+    const history = Array.from({ length: 14 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" as const : "assistant" as const,
+      content: `Tin ${index + 1}`
+    }));
+
+    const messages = buildUserChatMessages("Tin mới", history);
+
+    expect(messages).toHaveLength(14);
+    expect(messages[1]).toEqual({ role: "user", content: "Tin 3" });
+    expect(messages[12]).toEqual({ role: "assistant", content: "Tin 14" });
+    expect(messages[13]).toEqual({ role: "user", content: "Tin mới" });
+  });
 });

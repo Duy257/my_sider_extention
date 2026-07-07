@@ -8,6 +8,13 @@ export type PagePromptInput = {
   warnings: string[];
 };
 
+export type ChatHistoryMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+const MAX_CHAT_HISTORY_MESSAGES = 12;
+
 const SYSTEM_MESSAGE =
   "Bạn là trợ lý AI cá nhân, chuyên giúp đọc hiểu, viết lại, phân tích và biến nội dung trình duyệt thành hành động. Ưu tiên cấu trúc thực tế và các bước rõ ràng.";
 
@@ -80,9 +87,15 @@ Mỗi việc cần bắt đầu bằng động từ hành động.
 `.trim(),
 };
 
-export function buildUserChatMessages(input: string): AiMessage[] {
+export function buildUserChatMessages(input: string, history: ChatHistoryMessage[] = []): AiMessage[] {
+  const recentHistory = history
+    .filter((message) => message.content.trim())
+    .slice(-MAX_CHAT_HISTORY_MESSAGES)
+    .map((message) => ({ role: message.role, content: message.content }));
+
   return [
     { role: "system", content: SYSTEM_MESSAGE },
+    ...recentHistory,
     { role: "user", content: input },
   ];
 }
