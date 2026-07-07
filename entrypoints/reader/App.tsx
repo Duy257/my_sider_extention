@@ -17,6 +17,7 @@ export default function App() {
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId: crypto.randomUUID() });
@@ -102,6 +103,30 @@ export default function App() {
           />
         </aside>
       </div>
+
+      {!showBottomSheet && (
+        <button
+          onClick={() => setShowBottomSheet(true)}
+          className="fixed bottom-4 right-4 z-50 lg:hidden rounded-full bg-primary p-3 shadow-lg"
+        >
+          <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+        </button>
+      )}
+
+      {showBottomSheet && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowBottomSheet(false)} />
+          <div className="absolute bottom-0 left-0 right-0 h-[60vh] animate-fade-in-up">
+            <CompanionPanel
+              pageContent={pageData.content}
+              title={pageData.title}
+              url={pageData.url}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
