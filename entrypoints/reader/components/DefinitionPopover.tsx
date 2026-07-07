@@ -30,10 +30,12 @@ export function DefinitionPopover({ selection, onAskMore, onDismiss }: Definitio
       return;
     }
 
+    const abortController = new AbortController();
     setLoading(true);
     setError("");
 
     getSettings().then((settings) => {
+      if (abortController.signal.aborted) return;
       const runtime = resolveProviderRuntimeConfig(settings);
       if (!runtime.ok) {
         setError(runtime.error);
@@ -49,7 +51,9 @@ export function DefinitionPopover({ selection, onAskMore, onDismiss }: Definitio
           { role: "system", content: "Bạn là trợ lý giải thích. Giải thích ngắn gọn (1-3 câu) khái niệm sau bằng tiếng Việt. Chỉ trả lời phần giải thích, không thêm gì khác." },
           { role: "user", content: `Giải thích: ${selection.text}` },
         ],
+        signal: abortController.signal,
       }).then((result) => {
+        if (abortController.signal.aborted) return;
         setLoading(false);
         if (result.ok) {
           setDefinition(result.content);
@@ -59,6 +63,10 @@ export function DefinitionPopover({ selection, onAskMore, onDismiss }: Definitio
         }
       });
     });
+
+    return () => {
+      abortController.abort();
+    };
   }, [selection]);
 
   useEffect(() => {

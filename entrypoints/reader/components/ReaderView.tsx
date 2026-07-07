@@ -33,11 +33,19 @@ export function ReaderView({ content, title, url, onSelection, onDismissSelectio
     }, 300);
   }, [onSelection]);
 
+  const handleMouseDown = useCallback(() => {
+    if (selectionTimerRef.current) {
+      clearTimeout(selectionTimerRef.current);
+      selectionTimerRef.current = null;
+    }
+    onDismissSelection?.();
+  }, [onDismissSelection]);
+
   return (
     <article
       ref={articleRef}
       onMouseUp={handleMouseUp}
-      onMouseDown={onDismissSelection}
+      onMouseDown={handleMouseDown}
       className="reader-article mx-auto max-w-[700px] px-6 py-16"
     >
       <header className="mb-10">
