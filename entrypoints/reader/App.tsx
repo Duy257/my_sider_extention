@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ProgressBar } from "./components/ProgressBar";
 import { ReaderHeader } from "./components/ReaderHeader";
+import { ReaderView } from "./components/ReaderView";
 
 type PageData = {
   title: string;
@@ -62,7 +63,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-warm-bg text-stone-50">
+    <div className="flex min-h-screen flex-col bg-warm-bg text-stone-50">
       <ProgressBar />
       <ReaderHeader
         title={pageData.title}
@@ -71,6 +72,15 @@ export default function App() {
         saving={saveStatus === "saving"}
         saved={saveStatus === "saved"}
       />
+      <div className="flex flex-1">
+        <main className="flex-1 overflow-auto">
+          <ReaderView
+            content={pageData.content}
+            title={pageData.title}
+            url={pageData.url}
+          />
+        </main>
+      </div>
     </div>
   );
 }

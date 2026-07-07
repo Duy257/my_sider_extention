@@ -18,6 +18,7 @@ export default {
           active: "#44403C",
         },
         border: "#44403C",
+        "stone-850": "#231F1E",
         secondary: "#A8A29E",
       },
       fontFamily: {

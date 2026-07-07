@@ -28,3 +28,52 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-surface-hover;
 }
+
+.reader-article h1,
+.reader-article h2,
+.reader-article h3 {
+  @apply font-bold text-stone-50 mt-8 mb-4;
+}
+.reader-article h1 { @apply text-2xl; }
+.reader-article h2 { @apply text-xl; }
+.reader-article h3 { @apply text-lg; }
+
+.reader-article p {
+  @apply mb-4;
+}
+
+.reader-article img {
+  @apply max-w-full rounded-xl my-6;
+}
+
+.reader-article pre {
+  @apply rounded-xl bg-surface border border-stone-850 p-4 my-4 overflow-x-auto text-sm;
+}
+
+.reader-article code {
+  @apply text-sm bg-surface px-1.5 py-0.5 rounded;
+}
+
+.reader-article pre code {
+  @apply bg-transparent p-0;
+}
+
+.reader-article blockquote {
+  @apply border-l-4 border-primary/40 pl-4 italic text-stone-400 my-4;
+}
+
+.reader-article ul,
+.reader-article ol {
+  @apply pl-6 my-4 space-y-1.5;
+}
+
+.reader-article ul { @apply list-disc; }
+.reader-article ol { @apply list-decimal; }
+
+.reader-article li {
+  @apply text-stone-300;
+}
+
+.reader-article a {
+  @apply text-primary-light hover:underline;
+}
