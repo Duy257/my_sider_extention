@@ -227,6 +227,26 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message.type === "READER_SAVE_SESSION") {
+      import("../src/lib/storage/index").then(({ getSavedResults, saveSavedResults }) => {
+        getSavedResults().then((results) => {
+          const newResult = {
+            id: crypto.randomUUID(),
+            title: message.title || "Reading Session",
+            sourceType: "page",
+            sourceUrl: message.url || "",
+            sourceTitle: message.title || "",
+            outputMarkdown: message.summary || "",
+            createdAt: message.date || new Date().toISOString(),
+          } satisfies import("../src/lib/storage/types").SavedResult;
+          saveSavedResults([newResult, ...results]).then(() => {
+            sendResponse({ ok: true });
+          });
+        });
+      }).catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
     if (message.type === "SETTINGS_UPDATED") {
       settingsCache = null;
       sendResponse({ ok: true });
