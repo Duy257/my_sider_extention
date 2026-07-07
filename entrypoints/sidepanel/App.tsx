@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getProvider } from "../../src/lib/ai/providers";
-import { buildUserChatMessages } from "../../src/lib/prompts/builders";
+import { buildPagePrompt } from "../../src/lib/prompts/builders";
 import { getPromptTemplates, getSavedResults, getSettings, savePromptTemplates, saveSavedResults, saveSettings } from "../../src/lib/storage";
 import type { PromptTemplate } from "../../src/lib/prompts/types";
 import type { SavedResult, Settings } from "../../src/lib/storage/types";
-import { AI_STREAM_PORT } from "../../src/lib/messaging/ports";
-import type { AiPortResponse } from "../../src/lib/messaging/types";
 import { ChatComposer } from "./components/ChatComposer";
 import { ChatMessage, TypingIndicator } from "./components/ChatMessage";
 import { HeaderBar, type HeaderView } from "./components/HeaderBar";
@@ -14,40 +12,15 @@ import { SavedResults } from "./components/SavedResults";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SkeletonPanel } from "./components/Skeleton";
 import { EmptyState } from "./components/EmptyState";
-
-type ChatItem = {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-};
-
-type StreamingPhase = "idle" | "connecting" | "streaming";
+import { useChatController, type ChatItem } from "./hooks/useChatController";
 
 export default function App() {
   const [view, setView] = useState<HeaderView>("chat");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
   const [savedResults, setSavedResultsState] = useState<SavedResult[]>([]);
-  const [messages, setMessages] = useState<ChatItem[]>([]);
-  const [streaming, setStreaming] = useState(false);
-  const [streamingPhase, setStreamingPhase] = useState<StreamingPhase>("idle");
-  const portRef = useRef<chrome.runtime.Port | null>(null);
-  
-  // Auto-dismissing error state implementation
-  const [error, setErrorState] = useState("");
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setError = (msg: string) => {
-    setErrorState(msg);
-    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-    if (msg) {
-      errorTimerRef.current = setTimeout(() => {
-        setErrorState("");
-      }, 8000);
-    }
-  };
-
   const [readingPage, setReadingPage] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const provider = settings ? getProvider(settings.providerId) : undefined;
   const selectedModel = settings && provider ? settings.selectedModels[provider.id]?.trim() || provider.defaultModel?.trim() : "";
@@ -63,6 +36,8 @@ export default function App() {
     return !selectedModel;
   }, [settings, provider, selectedModel]);
 
+  const chat = useChatController({ canSend: Boolean(settings && provider && !missingApiKey && !missingModel) });
+
   useEffect(() => {
     Promise.all([getSettings(), getPromptTemplates(), getSavedResults()]).then(([loadedSettings, loadedPrompts, loadedSaved]) => {
       setSettings(loadedSettings);
@@ -70,13 +45,10 @@ export default function App() {
       setSavedResultsState(loadedSaved);
     });
     chrome.runtime.sendMessage({ type: "ACTIVATE_ACTIVE_TAB_AGENT", requestId: crypto.randomUUID() }).catch(() => undefined);
-    
-    return () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-    };
   }, []);
 
-  const sendPromptRef = useRef(sendPrompt);
+  const sendPromptRef = useRef(chat.sendPrompt);
+
   async function updateSettings(next: Settings) {
     setSettings(next);
     await saveSettings(next);
@@ -93,82 +65,7 @@ export default function App() {
     await saveSavedResults(next);
   }
 
-  function sendPrompt(text: string) {
-    if (!settings) return;
-    if (streaming) return;
-    setError("");
-    setStreaming(true);
-    setStreamingPhase("connecting");
-
-    const requestId = crypto.randomUUID();
-    const assistantId = crypto.randomUUID();
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", content: text },
-      { id: assistantId, role: "assistant", content: "" }
-    ]);
-
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-      portRef.current = port;
-    } catch {
-      setStreaming(false);
-      setStreamingPhase("idle");
-      setError("Không thể kết nối dịch vụ AI.");
-      return;
-    }
-
-    port.onDisconnect.addListener(() => {
-      setStreaming(false);
-      setStreamingPhase("idle");
-      portRef.current = null;
-      if (chrome.runtime.lastError) {
-        setError(chrome.runtime.lastError.message || "Mất kết nối.");
-      }
-    });
-
-    port.onMessage.addListener((message: AiPortResponse) => {
-      if (message.requestId !== requestId) return;
-
-      if (message.type === "AI_STREAM_CONNECTING") {
-        setStreamingPhase("connecting");
-      }
-
-      if (message.type === "AI_STREAM_FIRST_TOKEN") {
-        setStreamingPhase("streaming");
-      }
-
-      if (message.type === "AI_STREAM_CHUNK") {
-        setMessages((current) =>
-          current.map((item) => (item.id === assistantId ? { ...item, content: item.content + message.delta } : item))
-        );
-      }
-
-      if (message.type === "AI_STREAM_DONE") {
-        setStreaming(false);
-        setStreamingPhase("idle");
-        portRef.current = null;
-        port.disconnect();
-      }
-
-      if (message.type === "AI_STREAM_ERROR") {
-        setStreaming(false);
-        setStreamingPhase("idle");
-        portRef.current = null;
-        setError(message.message);
-        port.disconnect();
-      }
-    });
-
-    port.postMessage({
-      type: "AI_CHAT_REQUEST",
-      requestId,
-      messages: buildUserChatMessages(text)
-    });
-  }
-
-  sendPromptRef.current = sendPrompt;
+  sendPromptRef.current = chat.sendPrompt;
 
   useEffect(() => {
     function handleMessage(msg: { type: string; prompt?: string }) {
@@ -181,6 +78,10 @@ export default function App() {
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ block: "end" });
+  }, [chat.messages, chat.streamingPhase]);
+
   async function saveMessage(item: ChatItem) {
     const newResult: SavedResult = {
       id: crypto.randomUUID(),
@@ -189,15 +90,11 @@ export default function App() {
       outputMarkdown: item.content,
       createdAt: new Date().toISOString()
     };
-    setSavedResultsState((prev) => {
-      const updated = [newResult, ...prev];
-      saveSavedResults(updated).catch(() => undefined);
-      return updated;
-    });
+    await updateSavedResults([newResult, ...savedResults]);
   }
 
   async function readPage() {
-    setError("");
+    chat.setError("");
     setReadingPage(true);
     setView("chat");
     try {
@@ -207,46 +104,29 @@ export default function App() {
       });
 
       if (response?.error) {
-        setError(response.error);
+        chat.setError(response.error);
         return;
       }
 
       if (!response?.text) {
-        setError("Trang này không có nội dung đọc được.");
+        chat.setError("Trang này không có nội dung đọc được.");
         return;
       }
 
-      sendPrompt(
-        [
-          "Đọc trang này và tóm tắt từ góc nhìn CEO.",
-          "",
-          `Tiêu đề: ${response.title}`,
-          `URL: ${response.url}`,
-          response.warnings?.length ? `Cảnh báo: ${response.warnings.join(" ")}` : "",
-          "",
-          response.text
-        ]
-          .filter(Boolean)
-          .join("\n")
+      chat.sendPrompt(
+        buildPagePrompt({
+          title: response.title,
+          url: response.url,
+          text: response.text,
+          warnings: response.warnings || []
+        })
       );
     } catch {
-      setError("Không thể đọc trang.");
+      chat.setError("Không thể đọc trang.");
     } finally {
       setReadingPage(false);
     }
   }
-
-  useEffect(() => {
-    chrome.runtime
-      .sendMessage({ type: "GET_PENDING_SELECTION_PROMPT", requestId: crypto.randomUUID() })
-      .then((pending) => {
-        if (pending?.prompt) {
-          setView("chat");
-          sendPrompt(pending.prompt);
-        }
-      })
-      .catch(() => undefined);
-  }, [settings?.providerId, selectedModel]);
 
   if (!settings) {
     return (
@@ -260,14 +140,14 @@ export default function App() {
     <main className="flex min-h-screen flex-col bg-warm-bg text-stone-50">
       <HeaderBar view={view} onViewChange={setView} onReadPage={readPage} readingPage={readingPage} />
       
-      {error ? (
+      {chat.error ? (
         <div className="mx-3 mt-3 flex items-center gap-2.5 rounded-xl border border-red-900/30 bg-red-950/20 px-3.5 py-2.5 text-xs text-red-400 animate-fade-in-up">
           <svg className="h-5 w-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <span className="flex-1 font-medium">{error}</span>
+          <span className="flex-1 font-medium">{chat.error}</span>
           <button 
-            onClick={() => setError("")} 
+            onClick={chat.dismissError} 
             className="text-stone-400 hover:text-stone-200 transition-colors text-sm font-bold px-1"
           >
             ×
@@ -281,46 +161,55 @@ export default function App() {
       
       {view === "chat" ? (
         <>
+          {chat.messages.length > 0 || chat.streaming ? (
+            <div className="flex justify-end px-3.5 pt-3">
+              <button
+                type="button"
+                title="Chat mới"
+                onClick={chat.clearChat}
+                className="rounded-lg border border-stone-800/60 bg-surface/60 px-3 py-1.5 text-xs font-medium text-stone-300 transition-colors hover:border-primary/30 hover:text-stone-100"
+              >
+                Chat mới
+              </button>
+            </div>
+          ) : null}
           <section className="flex-1 space-y-3.5 overflow-auto p-3.5" aria-live="polite" aria-relevant="additions">
-            {messages.length === 0 ? (
-              <EmptyState onChipClick={(text) => sendPrompt(text)} />
+            {chat.messages.length === 0 ? (
+              <EmptyState onChipClick={(text) => chat.sendPrompt(text)} />
             ) : (
-              messages.map((item) => (
+              chat.messages.map((item) => (
                 <ChatMessage 
                   key={item.id} 
                   role={item.role} 
                   content={item.content} 
-                  onSave={item.role === "assistant" ? () => saveMessage(item) : undefined} 
+                  onSave={item.role === "assistant" ? () => saveMessage(item) : undefined}
+                  onActionError={chat.setError}
                 />
               ))
             )}
-            {streaming && messages.length > 0 && messages[messages.length - 1].content === "" ? (
-              <TypingIndicator phase={streamingPhase} />
+            {chat.streaming && chat.messages.length > 0 && chat.messages[chat.messages.length - 1].content === "" ? (
+              <TypingIndicator phase={chat.streamingPhase} />
             ) : null}
-            {streaming && streamingPhase === "connecting" && (
+            {chat.streaming && chat.streamingPhase === "connecting" && (
               <div className="flex justify-center">
                 <button
-                  onClick={() => {
-                    portRef.current?.disconnect();
-                    setStreaming(false);
-                    setStreamingPhase("idle");
-                    portRef.current = null;
-                  }}
+                  onClick={chat.cancelStream}
                   className="text-xs text-stone-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg border border-stone-800/50 hover:border-red-900/30 hover:bg-red-950/10"
                 >
                   Hủy yêu cầu
                 </button>
               </div>
             )}
+            <div ref={chatEndRef} />
           </section>
           
           <ChatComposer
-            disabled={streaming || missingApiKey || missingModel}
-            onSend={sendPrompt}
+            disabled={chat.streaming || missingApiKey || missingModel}
+            onSend={chat.sendPrompt}
             showMissingKeyBanner={missingApiKey || missingModel}
             missingType={missingApiKey ? "key" : "model"}
             providerLabel={provider?.label}
-            sending={streaming}
+            sending={chat.streaming}
           />
         </>
       ) : null}
