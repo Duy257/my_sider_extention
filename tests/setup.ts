@@ -56,12 +56,17 @@ globalThis.chrome = {
     setPanelBehavior: vi.fn(() => Promise.resolve()),
     open: vi.fn(() => Promise.resolve())
   },
+  contextMenus: {
+    create: vi.fn(),
+    onClicked: createListenerContainer() as any
+  },
   action: {
     onClicked: createListenerContainer() as any
   },
   tabs: {
     query: vi.fn(() => Promise.resolve([{ id: 1 }])),
-    sendMessage: vi.fn(() => Promise.resolve(null))
+    sendMessage: vi.fn(() => Promise.resolve(null)),
+    create: vi.fn(() => Promise.resolve({ id: 2 }))
   },
   scripting: {
     executeScript: vi.fn(() => Promise.resolve([]))

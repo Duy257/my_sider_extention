@@ -271,6 +271,54 @@ export async function streamChatCompletion(input: {
   }
 }
 
+// === NON-STREAM COMPLETION (for inline definitions) ===
+export async function fetchCompletion(input: {
+  baseUrl: string;
+  apiKey?: string;
+  model: string;
+  messages: AiMessage[];
+  signal?: AbortSignal;
+}): Promise<{ ok: true; content: string } | { ok: false; error: string }> {
+  try {
+    const response = await fetchWithTimeout(input.baseUrl, {
+      method: "POST",
+      signal: input.signal,
+      headers: createHeaders(input.apiKey, true),
+      body: JSON.stringify({
+        model: input.model,
+        messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}.`;
+      try {
+        const text = await response.text();
+        const parsed = JSON.parse(text);
+        if (parsed?.error?.message) errorMessage = parsed.error.message;
+      } catch {}
+      return { ok: false, error: errorMessage };
+    }
+
+    let body: any;
+    try {
+      body = await response.json();
+    } catch {
+      return { ok: false, error: "Provider returned a non-JSON response." };
+    }
+
+    const content = body?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") {
+      return { ok: false, error: "Provider returned an unexpected response format." };
+    }
+    return { ok: true, content };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error.";
+    return { ok: false, error: msg };
+  }
+}
+
 // === KIỂM TRA KẾT NỐI ===
 // Gửi một request đơn giản (không stream) để kiểm tra provider có hoạt động không
 export async function testConnection(input: {

@@ -1,7 +1,7 @@
-import { fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
+import { fetchCompletion, fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
 import { resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
-import type { AiPortRequest } from "../src/lib/messaging/types";
+import type { AiPortRequest, ExtensionMessage } from "../src/lib/messaging/types";
 import { getSettings } from "../src/lib/storage";
 import type { Settings } from "../src/lib/storage/types";
 
@@ -49,6 +49,11 @@ async function injectContentAgent(tabId: number) {
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    chrome.contextMenus.create({
+      id: "read-with-ai",
+      title: "Đọc với AI",
+      contexts: ["page"],
+    });
   });
 
   chrome.runtime.onConnect.addListener((port) => {
@@ -182,6 +187,46 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message.type === "OPEN_READING_COMPANION") {
+      getActiveTab()
+        .then(async (tab) => {
+          await injectContentAgent(tab.id!);
+          let lastError: unknown;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+              const response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
+              if (response?.error) {
+                sendResponse({ error: response.error });
+                return;
+              }
+              const readerTab = await chrome.tabs.create({ url: chrome.runtime.getURL("/reader.html") });
+              const readerReady = (msg: any) => {
+                if (msg.type === "READER_CONTENT_READY" && msg.requestId === message.requestId) {
+                  chrome.runtime.onMessage.removeListener(readerReady);
+                  chrome.tabs.sendMessage(readerTab.id!, {
+                    type: "LOAD_READER_CONTENT",
+                    requestId: message.requestId,
+                    title: response.title || tab.title || "",
+                    url: response.url || tab.url || "",
+                    content: response.content || response.text || "",
+                    excerpt: response.excerpt || "",
+                  }).catch(() => undefined);
+                }
+              };
+              chrome.runtime.onMessage.addListener(readerReady);
+              sendResponse({ ok: true });
+              return;
+            } catch (err) {
+              lastError = err;
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+          }
+          sendResponse({ error: lastError instanceof Error ? lastError.message : "Content script not ready." });
+        })
+        .catch((error) => sendResponse({ error: String(error) }));
+      return true;
+    }
+
     if (message.type === "SETTINGS_UPDATED") {
       settingsCache = null;
       sendResponse({ ok: true });
@@ -189,5 +234,12 @@ export default defineBackground(() => {
     }
 
     return false;
+  });
+
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "read-with-ai" && tab?.id) {
+      const requestId = crypto.randomUUID();
+      chrome.runtime.sendMessage({ type: "OPEN_READING_COMPANION", requestId }).catch(() => {});
+    }
   });
 });
