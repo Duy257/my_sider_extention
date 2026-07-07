@@ -37,6 +37,12 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  useEffect(() => {
+    return () => {
+      try { portRef.current?.disconnect(); } catch {}
+    };
+  }, []);
+
   const sendQuestion = useCallback((question: string) => {
     if (!question.trim() || streaming) return;
     setStreaming(true);

@@ -199,7 +199,7 @@ export default defineBackground(() => {
                 sendResponse({ error: response.error });
                 return;
               }
-              const readerTab = await chrome.tabs.create({ url: chrome.runtime.getURL("/reader.html") });
+              const readerTab = await chrome.tabs.create({ url: chrome.runtime.getURL(`/reader.html?requestId=${message.requestId}`) });
               const readerReady = (msg: any) => {
                 if (msg.type === "READER_CONTENT_READY" && msg.requestId === message.requestId) {
                   chrome.runtime.onMessage.removeListener(readerReady);

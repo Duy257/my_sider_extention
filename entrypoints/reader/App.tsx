@@ -20,7 +20,9 @@ export default function App() {
   const [showBottomSheet, setShowBottomSheet] = useState(false);
 
   useEffect(() => {
-    chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId: crypto.randomUUID() });
+    const params = new URLSearchParams(window.location.search);
+    const requestId = params.get('requestId') || crypto.randomUUID();
+    chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId });
 
     function handleMessage(msg: any) {
       if (msg.type === "LOAD_READER_CONTENT") {

@@ -1,6 +1,20 @@
 import { useCallback, useRef } from "react";
 import type { SelectionInfo } from "../types";
 
+function sanitizeHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const div = doc.body.firstElementChild as HTMLElement | null;
+  if (!div) return html;
+  div.querySelectorAll('*').forEach((el) => {
+    for (const attr of el.attributes) {
+      if (attr.name.startsWith('on')) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  return div.innerHTML;
+}
+
 type ReaderViewProps = {
   content: string;
   title: string;
@@ -20,10 +34,10 @@ export function ReaderView({ content, title, url, onSelection, onDismissSelectio
     selectionTimerRef.current = setTimeout(() => {
       const selection = window.getSelection();
       const text = selection?.toString().trim();
-      if (!text || text.length < 2 || !onSelection) return;
+      if (!text || text.length < 2 || !selection || selection.rangeCount === 0 || !onSelection) return;
 
-      const range = selection?.getRangeAt(0);
-      const rect = range?.getBoundingClientRect();
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
       if (!rect) return;
 
       onSelection({
@@ -61,7 +75,7 @@ export function ReaderView({ content, title, url, onSelection, onDismissSelectio
       </header>
       <div
         className="prose-content text-[16px] leading-relaxed text-stone-200 space-y-5"
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
       />
     </article>
   );
