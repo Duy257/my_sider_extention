@@ -332,3 +332,52 @@
 - Settings: hỗ trợ `defaultLanguage` với giá trị `"vi"` hoặc `"en"`
 - Hệ thống prompt: Tiếng Việt
 - Action labels: Tiếng Việt
+
+---
+
+## 16. AI Reading Companion
+
+### 16.1 Reader Tab (New Tab)
+- **File**: `entrypoints/reader/App.tsx`, `entrypoints/reader/main.tsx`, `entrypoints/reader/components/ReaderView.tsx`
+- Mở tab mới với giao diện đọc sạch sẽ, tập trung
+- Trích xuất nội dung trang web qua Readability.js (giống "Đọc trang")
+- Layout 2 cột: reading view (70%) + AI companion panel (30%)
+- Progress bar theo dõi tiến trình đọc
+- Nút back đóng tab, nút "Lưu" lưu session vào Saved Results
+- Cảnh báo khi nội dung >40k ký tự
+
+### 16.2 Reading View
+- **File**: `entrypoints/reader/components/ReaderView.tsx`, `entrypoints/reader/styles.css`
+- Render article với typography đẹp: headings, paragraphs, images, code blocks, blockquotes
+- Font Plus Jakarta Sans, line-height 1.7, tối đa 700px text width
+- Code blocks có border và số thứ tự dòng
+- Hỗ trợ select text → trigger inline definition (xem 16.4)
+
+### 16.3 Companion Panel (Tóm tắt & Hỏi đáp)
+- **File**: `entrypoints/reader/components/CompanionPanel.tsx`, `SummaryTab.tsx`, `QATab.tsx`
+- **Tab Tóm tắt**: chọn độ dài (1 câu / 1 đoạn / chi tiết), tóm tắt toàn trang. Streaming response.
+- **Tab Hỏi đáp**: chat với AI về nội dung trang. 3 câu hỏi mẫu (preset questions)
+- Cả hai tab đều hiển thị Markdown (bold, italic, code, headings, lists)
+
+### 16.4 Inline Definition
+- **File**: `entrypoints/reader/components/DefinitionPopover.tsx`
+- Bôi đen từ/cụm từ trong reading view → popover giải thích AI (1-3 câu)
+- Gọi API không stream (`fetchCompletion`) — phản hồi nhanh, không caching
+- Session cache: không gọi lại API cho cùng một từ trong cùng session
+- Nút "Hỏi thêm" → chuyển sang tab Hỏi đáp, pre-fill câu hỏi
+- Đóng popover: click outside / Escape
+
+### 16.5 Entry Points
+- **Context menu**: Chuột phải → "Đọc với AI" (`src/lib/messaging/types.ts`)
+- **Side panel**: Nút "Đọc với AI" trong HeaderBar (`entrypoints/sidepanel/components/HeaderBar.tsx`)
+- **Popup**: Click icon extension → popup với nút "Đọc với AI" (`entrypoints/popup/`)
+
+### 16.6 Lưu session
+- Nút "Lưu" trên Reader Header → lưu vào Saved Results
+- Format: `sourceType: "page"` với title, url, summary, date
+- Hiển thị trong danh sách Saved Results cùng với các kết quả khác
+
+### 16.7 Responsive
+- Desktop: companion panel dạng aside (340px) bên phải
+- Mobile (<1024px): companion panel ẩn, thay bằng FAB button → bottom sheet overlay
+- Bottom sheet: `h-[60vh]`, dismiss bằng click backdrop
