@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AI_STREAM_PORT } from "../../../src/lib/messaging/ports";
 import type { AiPortResponse } from "../../../src/lib/messaging/types";
 import { buildUserChatMessages } from "../../../src/lib/prompts/builders";
@@ -15,12 +15,23 @@ const PRESET_QUESTIONS = [
   "Điểm chính cần nhớ?",
 ];
 
-export function QATab({ pageContent }: { pageContent: string }) {
+type QATabProps = {
+  pageContent: string;
+  prefillQuestion?: string;
+};
+
+export function QATab({ pageContent, prefillQuestion }: QATabProps) {
   const [messages, setMessages] = useState<QAMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const portRef = useRef<chrome.runtime.Port | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (prefillQuestion) {
+      setInput(prefillQuestion);
+    }
+  }, [prefillQuestion]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

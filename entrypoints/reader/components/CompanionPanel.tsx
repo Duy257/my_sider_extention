@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SummaryTab } from "./SummaryTab";
 import { QATab } from "./QATab";
 
@@ -14,6 +14,16 @@ export function CompanionPanel({
   url: string;
 }) {
   const [activeTab, setActiveTab] = useState<CompanionTab>("summary");
+  const [prefillQuestion, setPrefillQuestion] = useState("");
+
+  useEffect(() => {
+    function handler(e: CustomEvent) {
+      setActiveTab("qa");
+      setPrefillQuestion(e.detail);
+    }
+    window.addEventListener("reader-ask-more" as any, handler as any);
+    return () => window.removeEventListener("reader-ask-more" as any, handler as any);
+  }, []);
 
   return (
     <aside className="flex h-full flex-col border-l border-stone-850 bg-surface/50">
@@ -43,7 +53,7 @@ export function CompanionPanel({
         {activeTab === "summary" ? (
           <SummaryTab pageContent={pageContent} title={title} url={url} />
         ) : (
-          <QATab pageContent={pageContent} />
+          <QATab pageContent={pageContent} prefillQuestion={prefillQuestion} />
         )}
       </div>
     </aside>

@@ -6,11 +6,12 @@ type ReaderViewProps = {
   title: string;
   url: string;
   onSelection?: (info: SelectionInfo) => void;
+  onDismissSelection?: () => void;
 };
 
 export type { ReaderViewProps };
 
-export function ReaderView({ content, title, url, onSelection }: ReaderViewProps) {
+export function ReaderView({ content, title, url, onSelection, onDismissSelection }: ReaderViewProps) {
   const articleRef = useRef<HTMLDivElement>(null);
   const selectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -36,6 +37,7 @@ export function ReaderView({ content, title, url, onSelection }: ReaderViewProps
     <article
       ref={articleRef}
       onMouseUp={handleMouseUp}
+      onMouseDown={onDismissSelection}
       className="reader-article mx-auto max-w-[700px] px-6 py-16"
     >
       <header className="mb-10">

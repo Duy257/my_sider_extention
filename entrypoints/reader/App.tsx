@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { CompanionPanel } from "./components/CompanionPanel";
+import { DefinitionPopover } from "./components/DefinitionPopover";
 import { ProgressBar } from "./components/ProgressBar";
 import { ReaderHeader } from "./components/ReaderHeader";
 import { ReaderView } from "./components/ReaderView";
+import type { SelectionInfo } from "./types";
 
 type PageData = {
   title: string;
@@ -14,6 +16,7 @@ type PageData = {
 export default function App() {
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [selection, setSelection] = useState<SelectionInfo | null>(null);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId: crypto.randomUUID() });
@@ -79,6 +82,16 @@ export default function App() {
             content={pageData.content}
             title={pageData.title}
             url={pageData.url}
+            onSelection={setSelection}
+            onDismissSelection={() => setSelection(null)}
+          />
+          <DefinitionPopover
+            selection={selection}
+            onAskMore={(text) => {
+              setSelection(null);
+              window.dispatchEvent(new CustomEvent("reader-ask-more", { detail: text }));
+            }}
+            onDismiss={() => setSelection(null)}
           />
         </main>
         <aside className="hidden lg:block w-[340px] flex-shrink-0">
