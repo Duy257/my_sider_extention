@@ -7,11 +7,11 @@ describe("useChatController", () => {
   beforeEach(() => {
     portEntries.splice(0, portEntries.length);
     vi.clearAllMocks();
-    chrome.runtime.lastError = undefined;
+    (chrome.runtime as any).lastError = undefined;
   });
 
   afterEach(() => {
-    chrome.runtime.lastError = undefined;
+    (chrome.runtime as any).lastError = undefined;
   });
 
   it("sends the current prompt and streams chunks into the assistant message", () => {

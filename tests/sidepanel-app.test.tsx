@@ -7,7 +7,7 @@ import { portEntries } from "./setup";
 beforeEach(() => {
   vi.clearAllMocks();
   portEntries.splice(0, portEntries.length);
-  chrome.runtime.lastError = undefined;
+  (chrome.runtime as any).lastError = undefined;
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -27,7 +27,7 @@ test("does not request a pending selection prompt on startup", async () => {
 
 test("read page uses the shared page prompt path", async () => {
   const user = userEvent.setup();
-  vi.mocked(chrome.runtime.sendMessage).mockImplementation((message) => {
+  vi.mocked(chrome.runtime.sendMessage).mockImplementation((message: any) => {
     if (message?.type === "EXTRACT_ACTIVE_PAGE") {
       return Promise.resolve({
         title: "Báo cáo",
