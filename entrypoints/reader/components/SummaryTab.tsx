@@ -113,25 +113,7 @@ export function SummaryTab({
         {streaming ? "Đang tóm tắt..." : "Tóm tắt toàn trang"}
       </button>
 
-      {sections.length > 0 && (
-        <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-500">
-            Theo từng phần
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {sections.map((section, i) => (
-              <button
-                key={i}
-                onClick={() => generateSummary(section)}
-                disabled={streaming}
-                className="rounded-md bg-surface border border-stone-800 px-2 py-1 text-[11px] text-stone-400 hover:text-stone-200 transition-colors disabled:opacity-50"
-              >
-                {section}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {summary ? (
         <div className="rounded-xl border border-stone-850 bg-surface p-3.5">

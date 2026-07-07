@@ -1,4 +1,4 @@
-import { fetchCompletion, fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
+import { fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
 import { resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest, ExtensionMessage } from "../src/lib/messaging/types";

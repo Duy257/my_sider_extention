@@ -32,8 +32,7 @@ export type ExtensionMessage =
   | { type: "READER_CONTENT_READY"; requestId: string }
   | { type: "LOAD_READER_CONTENT"; requestId: string; title: string; url: string; content: string; excerpt: string }
   | { type: "READER_SAVE_SESSION"; requestId: string; title: string; url: string; summary: string; date: string }
-  | { type: "READER_DEFINITION_REQUEST"; requestId: string; text: string; context: string }
-  | { type: "READER_DEFINITION_RESPONSE"; requestId: string; definition: string };
+;
 
 export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";

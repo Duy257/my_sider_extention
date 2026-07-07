@@ -36,22 +36,5 @@ describe("ExtensionMessage", () => {
     expect(msg.type).toBe("READER_SAVE_SESSION");
   });
 
-  it("accepts READER_DEFINITION_REQUEST", () => {
-    const msg: ExtensionMessage = {
-      type: "READER_DEFINITION_REQUEST",
-      requestId: "abc",
-      text: "word",
-      context: "context sentence",
-    };
-    expect(msg.type).toBe("READER_DEFINITION_REQUEST");
-  });
 
-  it("accepts READER_DEFINITION_RESPONSE", () => {
-    const msg: ExtensionMessage = {
-      type: "READER_DEFINITION_RESPONSE",
-      requestId: "abc",
-      definition: "meaning of word",
-    };
-    expect(msg.type).toBe("READER_DEFINITION_RESPONSE");
-  });
 });
