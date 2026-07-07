@@ -8,6 +8,13 @@ export default defineConfig({
     version: "0.1.0",
     permissions: ["storage", "activeTab", "sidePanel", "scripting"],
     host_permissions: ["https://api.openai.com/*", "https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+    content_scripts: [
+      {
+        matches: ["https://*/*"],
+        js: ["active-tab-agent.js"],
+        run_at: "document_idle"
+      }
+    ],
     side_panel: {
       default_path: "sidepanel.html"
     },
