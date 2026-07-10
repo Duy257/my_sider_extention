@@ -264,7 +264,7 @@ export async function streamChatCompletion(input: {
     if (isWatchdogTimeout) {
       try {
         input.callbacks.onError(
-          "Provider is too slow. No response after 15 seconds.",
+          "Provider is too slow. No response after 30 seconds.",
         );
       } catch {}
       return;

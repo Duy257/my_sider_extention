@@ -91,5 +91,18 @@ npx vitest run
 
 ---
 
-## 4. Kết luận
+## 4. Phân tích Rủi ro & Hướng xử lý (Risk & Mitigation)
+
+Trong quá trình thiết kế, các kịch bản rủi ro về kết nối và bộ nhớ đã được phân tích và xử lý triệt để:
+
+| Kịch bản Rủi ro | Tác động | Hướng xử lý & Giải pháp ngăn ngừa |
+| :--- | :--- | :--- |
+| **Mất kết nối mạng đột ngột / Port bị đứt** | Rò rỉ cổng kết nối, trạng thái UI bị treo ở chế độ loading. | Hệ thống sử dụng bộ lắng nghe `port.onDisconnect` trên cả background và sidepanel để ngay lập tức dọn dẹp các tài nguyên liên quan, giải phóng cổng kết nối và chuyển UI về trạng thái an toàn kèm thông báo lỗi thân thiện. |
+| ** watchdogs timeout không đồng bộ** | Trạng thái watchdog timer của luồng stream chạy vô hạn trong khi request thực tế đã bị hủy. | Cơ chế Watchdog Timer được kích hoạt với giới hạn 30s. Việc nhận được reasoning delta đầu tiên hoặc content delta đầu tiên sẽ lập tức giải phóng timer này thông qua hàm `markFirstActivity()`. |
+| **Trùng lặp listener handoff Reader** | Background service worker tạo ra nhiều listener lắng nghe cổng Reader gây tràn bộ nhớ. | Trình lắng nghe `READER_CONTENT_READY` được dọn dẹp chủ động bằng hàm `cleanupHandoff()` trong tất cả các nhánh rẽ: Hoàn thành thành công, Xảy ra lỗi trích xuất, hoặc Quá thời gian chờ (10s). |
+| **Tần suất re-render UI quá cao** | Stream reasoning delta đổ về liên tục làm đơ/lác giao diện Sidepanel. | Áp dụng kỹ thuật **Throttling/Batching** (100ms) trong `useChatController` để gộp các update delta và cập nhật state React một cách định kỳ, giảm số lượng render không cần thiết mà vẫn giữ giao diện mượt mà. |
+
+---
+
+## 5. Kết luận
 Chế độ **Developer Mode** đã được tích hợp toàn diện trên mọi bề mặt giao diện chính của tiện ích mở rộng (Sidepanel Chat, Floating Selection Window, và Reader Companion) với cấu trúc dữ liệu vết an toàn, quản lý kết nối tin cậy và hiệu năng đóng gói tối ưu.

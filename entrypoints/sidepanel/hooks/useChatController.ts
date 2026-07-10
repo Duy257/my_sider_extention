@@ -51,6 +51,12 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamingRef = useRef(false);
 
+  // Throttling stream buffers
+  const activeAssistantIdRef = useRef<string | null>(null);
+  const contentBufferRef = useRef("");
+  const reasoningBufferRef = useRef("");
+  const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   function setMessages(next: ChatTimelineItem[] | ((current: ChatTimelineItem[]) => ChatTimelineItem[])) {
     setMessagesState((current) => {
       const resolved = typeof next === "function" ? next(current) : next;
@@ -74,10 +80,74 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     portRef.current = null;
   }
 
+  const startFlushTimer = (id: string) => {
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setInterval(() => {
+      const contentDelta = contentBufferRef.current;
+      const reasoningDelta = reasoningBufferRef.current;
+
+      if (!contentDelta && !reasoningDelta) return;
+
+      contentBufferRef.current = "";
+      reasoningBufferRef.current = "";
+
+      setMessages((current) =>
+        current.map((item) => {
+          if (item.id === id && item.kind === "message") {
+            const updated = { ...item };
+            if (contentDelta) {
+              updated.content += contentDelta;
+            }
+            if (reasoningDelta && updated.debug) {
+              updated.debug = appendReasoning(updated.debug, reasoningDelta);
+            }
+            return updated;
+          }
+          return item;
+        })
+      );
+    }, 100);
+  };
+
+  const stopFlushTimerAndFlush = (id: string | null, finalTrace?: AiDevTrace) => {
+    if (flushTimerRef.current) {
+      clearInterval(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+
+    const contentDelta = contentBufferRef.current;
+    const reasoningDelta = reasoningBufferRef.current;
+
+    contentBufferRef.current = "";
+    reasoningBufferRef.current = "";
+    activeAssistantIdRef.current = null;
+
+    if (!id) return;
+
+    setMessages((current) =>
+      current.map((item) => {
+        if (item.id === id && item.kind === "message") {
+          const updated = { ...item };
+          if (contentDelta) {
+            updated.content += contentDelta;
+          }
+          if (finalTrace) {
+            updated.debug = finalTrace;
+          } else if (reasoningDelta && updated.debug) {
+            updated.debug = appendReasoning(updated.debug, reasoningDelta);
+          }
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
   function cancelStream() {
     try {
       portRef.current?.disconnect();
     } catch {}
+    stopFlushTimerAndFlush(activeAssistantIdRef.current);
     resetStreamState();
   }
 
@@ -102,6 +172,10 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
 
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
+    activeAssistantIdRef.current = assistantId;
+    contentBufferRef.current = "";
+    reasoningBufferRef.current = "";
+
     const chatMessages = messagesRef.current.filter((m): m is ChatMessageItem => m.kind === "message");
     const providerMessages = buildUserChatMessages(
       trimmed,
@@ -125,6 +199,7 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     }
 
     port.onDisconnect.addListener(() => {
+      stopFlushTimerAndFlush(activeAssistantIdRef.current);
       resetStreamState();
       if (chrome.runtime.lastError) {
         setError(chrome.runtime.lastError.message || "Mất kết nối.");
@@ -151,23 +226,14 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
       }
 
       if (message.type === "AI_STREAM_REASONING") {
-        setMessages((current) =>
-          current.map((item) => {
-            if (item.id === assistantId && item.kind === "message" && item.debug) {
-              return { ...item, debug: appendReasoning(item.debug, message.delta) };
-            }
-            return item;
-          })
-        );
+        reasoningBufferRef.current += message.delta;
+        startFlushTimer(assistantId);
       }
 
       if (message.type === "AI_STREAM_CHUNK") {
         setStreamingPhase("streaming");
-        setMessages((current) =>
-          current.map((item) =>
-            item.id === assistantId && item.kind === "message" ? { ...item, content: item.content + message.delta } : item
-          )
-        );
+        contentBufferRef.current += message.delta;
+        startFlushTimer(assistantId);
       }
 
       if (message.type === "AI_STREAM_DEBUG_UPDATE") {
@@ -185,27 +251,15 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
       }
 
       if (message.type === "AI_STREAM_DONE") {
+        stopFlushTimerAndFlush(assistantId, message.trace);
         resetStreamState();
-        if (message.trace) {
-          setMessages((current) =>
-            current.map((item) =>
-              item.id === assistantId && item.kind === "message" ? { ...item, debug: message.trace } : item
-            )
-          );
-        }
         port.disconnect();
       }
 
       if (message.type === "AI_STREAM_ERROR") {
+        stopFlushTimerAndFlush(assistantId, message.trace);
         resetStreamState();
         setError(message.message);
-        if (message.trace) {
-          setMessages((current) =>
-            current.map((item) =>
-              item.id === assistantId && item.kind === "message" ? { ...item, debug: message.trace } : item
-            )
-          );
-        }
         port.disconnect();
       }
     });
@@ -222,6 +276,7 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
   useEffect(() => {
     return () => {
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      if (flushTimerRef.current) clearInterval(flushTimerRef.current);
       try {
         portRef.current?.disconnect();
       } catch {}
