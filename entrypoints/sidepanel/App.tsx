@@ -210,11 +210,12 @@ export default function App() {
           
           <ChatComposer
             disabled={chat.streaming || missingApiKey || missingModel}
-            onSend={chat.sendPrompt}
+            onSend={(text, thinkingMode) => chat.sendPrompt(text, thinkingMode)}
             showMissingKeyBanner={missingApiKey || missingModel}
             missingType={missingApiKey ? "key" : "model"}
             providerLabel={provider?.label}
             sending={chat.streaming}
+            defaultThinkingMode={settings?.thinkingMode}
           />
         </>
       ) : null}
