@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ExtensionMessage } from "../../../src/lib/messaging/types";
+import type { AiDevTrace, ToolDevTrace } from "../../../src/lib/devtools/types";
 
 describe("ExtensionMessage", () => {
   it("accepts OPEN_READING_COMPANION", () => {
@@ -36,5 +37,29 @@ describe("ExtensionMessage", () => {
     expect(msg.type).toBe("READER_SAVE_SESSION");
   });
 
-
+  it("accepts ephemeral AI and tool dev trace contracts", () => {
+    const aiTrace: AiDevTrace = {
+      requestId: "request-1",
+      surface: "sidepanel",
+      feature: "chat",
+      status: "pending",
+      providerId: "openai",
+      model: "gpt-5.4-mini",
+      requestedThinkingMode: "high",
+      effectiveRequestParams: { reasoning_effort: "high" },
+      startedAt: 100,
+      thinking: { state: "pending", content: "" }
+    };
+    const toolTrace: ToolDevTrace = {
+      requestId: "tool-1",
+      tool: "read-page",
+      status: "success",
+      startedAt: 100,
+      finishedAt: 150,
+      metadata: { extractor: "readability", contentChars: 420 }
+    };
+    expect(aiTrace.feature).toBe("chat");
+    expect(toolTrace.metadata.contentChars).toBe(420);
+  });
 });
+
