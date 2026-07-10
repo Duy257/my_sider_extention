@@ -38,6 +38,7 @@ export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
   requestId: string;
   messages: AiMessage[];
+  thinkingMode?: "off" | "low" | "medium" | "high" | "max";
 };
 
 export type AiPortResponse =

@@ -1,5 +1,5 @@
 import { fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
-import { resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
+import { getThinkingParams, resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest, ExtensionMessage } from "../src/lib/messaging/types";
 import { getSettings } from "../src/lib/storage";
@@ -84,11 +84,15 @@ export default defineBackground(() => {
           return;
         }
 
+        const thinkingMode = message.thinkingMode ?? runtime.config.thinkingMode;
+        const extraBodyParams = getThinkingParams(runtime.config.providerId, thinkingMode);
+
         await streamChatCompletion({
           baseUrl: runtime.config.baseUrl,
           apiKey: runtime.config.apiKey,
           model: runtime.config.model,
           messages: message.messages,
+          extraBodyParams,
           signal: controller.signal,
           callbacks: {
             onConnecting: () =>
