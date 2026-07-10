@@ -58,7 +58,10 @@ Tính năng **Developer Mode** cung cấp cho nhà phát triển khả năng the
 
 ### Tác vụ 12: Hiển thị Vết định tuyến vùng chọn tại Cửa sổ Nổi
 - Truyền vết định tuyến `toolTrace` từ content script chuyển tiếp đến [FloatingWindow.tsx](file:///Users/duynguyen/MyProject/extentions/my_sider_extention/src/lib/floating-window/FloatingWindow.tsx).
-- Inject tập hợp các lớp CSS Tailwind cơ bản vào Shadow DOM trong [mount.ts](file:///Users/duynguyen/MyProject/extentions/my_sider_extention/src/lib/floating-window/mount.ts) để hiển thị đồng bộ giao diện thiết kế mà không phá vỡ sự cô lập CSS của trang chủ.
+- Cấu hình cho cổng kết nối của `FloatingWindow` lắng nghe các gói tin debug (`AI_STREAM_DEBUG_START`, `AI_STREAM_REASONING`, `AI_STREAM_DEBUG_UPDATE`, `AI_STREAM_DONE`) và cập nhật trạng thái `aiTrace` cục bộ khi Dev Mode được kích hoạt.
+- Mount component `DebugDetails` ở phía cuối phần thân cửa sổ nổi để hiển thị đầy đủ thông số stream AI (suy nghĩ reasoning, token, TTFT).
+- Inject tập hợp các lớp CSS Tailwind mở rộng bổ sung phục vụ cho component `DebugDetails` vào Shadow DOM trong [mount.ts](file:///Users/duynguyen/MyProject/extentions/my_sider_extention/src/lib/floating-window/mount.ts) để hiển thị đồng bộ giao diện thiết kế mà không phá vỡ sự cô lập CSS của trang chủ.
+
 
 ### Tác vụ 13: Hiển thị Vết tại Reading Companion
 - Nâng cấp [App.tsx](file:///Users/duynguyen/MyProject/extentions/my_sider_extention/entrypoints/reader/App.tsx) của trang đọc sách để bắt thông điệp lỗi tải `LOAD_READER_ERROR`.
