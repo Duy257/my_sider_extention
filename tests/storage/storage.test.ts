@@ -12,6 +12,7 @@ describe("storage defaults", () => {
       selectedModels: {},
       defaultLanguage: "vi",
       thinkingMode: "off",
+      devMode: false,
       updatedAt: "2026-06-25T00:00:00.000Z"
     });
   });
@@ -32,8 +33,44 @@ describe("storage defaults", () => {
     expect(migrated.data).toEqual({ provider: "openai" });
   });
 
-  it("uses schema version 4", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(4);
+  it("uses schema version 5", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(5);
+  });
+
+  it("migrates v4 settings with thinkingMode high", () => {
+    const migrated = migrateSettingsEnvelope({
+      schemaVersion: 4,
+      data: {
+        providerId: "openai",
+        apiKeys: { openai: "sk" },
+        selectedModels: { openai: "gpt-4o" },
+        defaultLanguage: "vi",
+        thinkingMode: "high",
+        updatedAt: "2026-06-24T00:00:00.000Z"
+      }
+    }, createDefaultSettings("fallback"));
+
+    expect(migrated.schemaVersion).toBe(5);
+    expect(migrated.data).toMatchObject({
+      thinkingMode: "high",
+      devMode: false
+    });
+  });
+
+  it("falls back for invalid thinkingMode and devMode", () => {
+    const migrated = migrateSettingsEnvelope({
+      schemaVersion: 4,
+      data: {
+        providerId: "openai",
+        thinkingMode: "invalid",
+        devMode: "yes"
+      }
+    }, createDefaultSettings("fallback"));
+
+    expect(migrated.data).toMatchObject({
+      thinkingMode: "off",
+      devMode: false
+    });
   });
 
   it("migrates v2 openai settings", () => {
@@ -49,13 +86,14 @@ describe("storage defaults", () => {
       }
     }, createDefaultSettings("fallback"));
 
-    expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.schemaVersion).toBe(5);
     expect(migrated.data).toEqual({
       providerId: "openai",
       apiKeys: { openai: "sk-old" },
       selectedModels: { openai: "gpt-5.4-mini" },
       defaultLanguage: "en",
       thinkingMode: "off",
+      devMode: false,
       updatedAt: "2026-06-24T00:00:00.000Z"
     });
   });

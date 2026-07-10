@@ -9,6 +9,7 @@ export function createDefaultSettings(now = new Date().toISOString()): Settings 
     selectedModels: {},
     defaultLanguage: "vi",
     thinkingMode: "off",
+    devMode: false,
     updatedAt: now
   };
 }

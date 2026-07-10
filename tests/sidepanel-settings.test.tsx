@@ -11,6 +11,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     selectedModels: {},
     defaultLanguage: "vi",
     thinkingMode: "off",
+    devMode: false,
     updatedAt: "2026-06-25T00:00:00.000Z",
     ...overrides
   };

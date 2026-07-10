@@ -1,7 +1,15 @@
 import { getDefaultProviderId, getProvider } from "../ai/providers";
 import type { Settings, StorageEnvelope } from "./types";
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
+
+const THINKING_MODES = new Set(["off", "low", "medium", "high", "max"]);
+
+function readThinkingMode(value: unknown): Settings["thinkingMode"] {
+  return typeof value === "string" && THINKING_MODES.has(value)
+    ? value as Settings["thinkingMode"]
+    : "off";
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -67,7 +75,8 @@ export function migrateSettingsData(value: unknown, fallback: Settings): Setting
     apiKeys,
     selectedModels,
     defaultLanguage: data.defaultLanguage === "en" ? "en" : "vi",
-    thinkingMode: "off",
+    thinkingMode: readThinkingMode(data.thinkingMode),
+    devMode: data.devMode === true,
     updatedAt: trimString(data.updatedAt) ?? fallback.updatedAt
   };
 }
