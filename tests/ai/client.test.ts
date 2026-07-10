@@ -100,6 +100,33 @@ describe("streamChatCompletion", () => {
     vi.unstubAllGlobals();
   });
 
+  it("merges extraBodyParams into request body", async () => {
+    const sse = [
+      'data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}\n\n',
+      "data: [DONE]\n\n"
+    ];
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      body: createMockSSE(sse)
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await streamChatCompletion({
+      baseUrl: "https://api.openai.com/v1/chat/completions",
+      apiKey: "sk-test",
+      model: "o3-mini",
+      messages: [{ role: "user", content: "Think hard" }],
+      extraBodyParams: { reasoning_effort: "high" },
+      callbacks: { onDelta: vi.fn(), onDone: vi.fn(), onError: vi.fn() }
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.reasoning_effort).toBe("high");
+
+    vi.unstubAllGlobals();
+  });
+
   it("calls onError on network failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
 

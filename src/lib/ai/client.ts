@@ -110,6 +110,7 @@ export async function streamChatCompletion(input: {
   model: string; // tên model
   messages: AiMessage[]; // lịch sử hội thoại
   signal?: AbortSignal; // signal để hủy request từ bên ngoài
+  extraBodyParams?: Record<string, unknown>;
   callbacks: StreamCallbacks;
 }): Promise<void> {
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
@@ -131,6 +132,7 @@ export async function streamChatCompletion(input: {
           content: m.content,
         })),
         stream: true, // Bật chế độ streaming SSE
+        ...input.extraBodyParams,
       }),
     });
 
@@ -278,6 +280,7 @@ export async function fetchCompletion(input: {
   model: string;
   messages: AiMessage[];
   signal?: AbortSignal;
+  extraBodyParams?: Record<string, unknown>;
 }): Promise<{ ok: true; content: string } | { ok: false; error: string }> {
   try {
     const response = await fetchWithTimeout(input.baseUrl, {
@@ -288,6 +291,7 @@ export async function fetchCompletion(input: {
         model: input.model,
         messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
         stream: false,
+        ...input.extraBodyParams,
       }),
     });
 
@@ -325,6 +329,7 @@ export async function testConnection(input: {
   baseUrl: string;
   apiKey?: string;
   model: string;
+  extraBodyParams?: Record<string, unknown>;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const response = await fetchWithTimeout(input.baseUrl, {
@@ -335,6 +340,7 @@ export async function testConnection(input: {
         messages: [{ role: "user", content: "Hi" }],
         max_tokens: 10,
         stream: false,
+        ...input.extraBodyParams,
       }),
     });
 
