@@ -307,6 +307,7 @@ Trace data is ephemeral. Saved chat results retain only the existing `outputMark
 | `tests/devtools/debug-details.test.tsx` | AI debug UI interaction and unavailable states. |
 | `tests/devtools/tool-trace-card.test.tsx` | Tool trace status and safe metadata rendering. |
 | `tests/background-dev-trace.test.ts` | Background Port and tool-operation trace behavior. |
+| `tests/reader/dev-traces.test.tsx` | Reader handoff, streamed AI trace, and DefinitionPopover Port coverage. |
 
 ### Modified files
 
@@ -331,11 +332,15 @@ Trace data is ephemeral. Saved chat results retain only the existing `outputMark
 | `entrypoints/reader/components/QATab.tsx` | Attach `reader-qa` context and render `DebugDetails`. |
 | `entrypoints/reader/components/DefinitionPopover.tsx` | Use Port streaming with `reader-definition` context and render compact debug UI. |
 | `tests/setup.ts` | Support the expanded typed Port message lifecycle when required by new tests. |
+| `tests/lib/messaging/types.test.ts` | Cover Dev Trace Port and Reader runtime message fixtures. |
+| `tests/storage/defaults.test.ts` | Cover Developer Mode defaults. |
 | `tests/storage/storage.test.ts` | Cover migrated Developer Mode settings. |
 | `tests/ai/client.test.ts` | Cover reasoning, usage, finish metadata, and debug parse isolation. |
 | `tests/ai/runtime.test.ts` | Cover runtime Developer Mode and safe usage parameter mapping. |
 | `tests/use-chat-controller.test.tsx` | Cover trace-to-timeline updates and Developer Mode off compatibility. |
+| `tests/chat-message.test.tsx` | Cover conditional inline AI trace placement. |
 | `tests/sidepanel-app.test.tsx` | Cover Read Page tool trace insertion. |
+| `tests/active-tab-agent.test.ts` | Cover selection forwarding fallback with an error trace. |
 | `tests/floating-window.test.tsx` | Cover selection and AI trace placement. |
 | `tests/sidepanel-settings.test.tsx` | Cover Developer Mode persistence control. |
 
