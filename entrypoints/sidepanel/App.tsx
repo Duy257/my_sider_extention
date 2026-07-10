@@ -12,7 +12,8 @@ import { SavedResults } from "./components/SavedResults";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SkeletonPanel } from "./components/Skeleton";
 import { EmptyState } from "./components/EmptyState";
-import { useChatController, type ChatItem } from "./hooks/useChatController";
+import { useChatController, type ChatMessageItem } from "./hooks/useChatController";
+import { ToolTraceCard } from "../../src/lib/devtools/components/ToolTraceCard";
 
 export default function App() {
   const [view, setView] = useState<HeaderView>("chat");
@@ -66,18 +67,18 @@ export default function App() {
     function handleMessage(msg: { type: string; prompt?: string }) {
       if (msg.type === "FORWARD_SELECTION_ACTION" && msg.prompt) {
         setView("chat");
-        sendPromptRef.current(msg.prompt);
+        sendPromptRef.current(msg.prompt, undefined, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined);
       }
     }
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, []);
+  }, [settings?.devMode]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "end" });
   }, [chat.messages, chat.streamingPhase]);
 
-  async function saveMessage(item: ChatItem) {
+  async function saveMessage(item: ChatMessageItem) {
     const newResult: SavedResult = {
       id: crypto.randomUUID(),
       title: item.content.slice(0, 60) || "Phản hồi đã lưu",
@@ -96,20 +97,72 @@ export default function App() {
     chat.setError("");
     setReadingPage(true);
     setView("chat");
+    const requestId = crypto.randomUUID();
+    let pendingTrace: any;
+    if (settings?.devMode) {
+      pendingTrace = {
+        requestId,
+        tool: "read-page",
+        status: "pending",
+        startedAt: Date.now(),
+        metadata: {}
+      };
+      chat.setMessages((current) => [
+        ...current,
+        { kind: "tool-trace", id: requestId, trace: pendingTrace }
+      ]);
+    }
+
     try {
       const response = await chrome.runtime.sendMessage({
         type: "EXTRACT_ACTIVE_PAGE",
-        requestId: crypto.randomUUID()
+        requestId
       });
 
       if (response?.error) {
+        if (response.toolTrace) {
+          chat.setMessages((current) =>
+            current.map((item) =>
+              item.id === requestId && item.kind === "tool-trace"
+                ? { ...item, trace: response.toolTrace }
+                : item
+            )
+          );
+        } else if (pendingTrace) {
+          chat.setMessages((current) =>
+            current.map((item) =>
+              item.id === requestId && item.kind === "tool-trace"
+                ? { ...item, trace: { ...pendingTrace, status: "error", finishedAt: Date.now(), error: response.error } }
+                : item
+            )
+          );
+        }
         chat.setError(response.error);
         return;
       }
 
       if (!response?.text) {
+        if (pendingTrace) {
+          chat.setMessages((current) =>
+            current.map((item) =>
+              item.id === requestId && item.kind === "tool-trace"
+                ? { ...item, trace: { ...pendingTrace, status: "error", finishedAt: Date.now(), error: "No readable content found." } }
+                : item
+            )
+          );
+        }
         chat.setError("Trang này không có nội dung đọc được.");
         return;
+      }
+
+      if (response.toolTrace) {
+        chat.setMessages((current) =>
+          current.map((item) =>
+            item.id === requestId && item.kind === "tool-trace"
+              ? { ...item, trace: response.toolTrace }
+              : item
+          )
+        );
       }
 
       chat.sendPrompt(
@@ -118,9 +171,20 @@ export default function App() {
           url: response.url,
           text: response.text,
           warnings: response.warnings || []
-        })
+        }),
+        undefined,
+        settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined
       );
     } catch {
+      if (pendingTrace) {
+        chat.setMessages((current) =>
+          current.map((item) =>
+            item.id === requestId && item.kind === "tool-trace"
+              ? { ...item, trace: { ...pendingTrace, status: "error", finishedAt: Date.now(), error: "Không thể đọc trang." } }
+              : item
+          )
+        );
+      }
       chat.setError("Không thể đọc trang.");
     } finally {
       setReadingPage(false);
@@ -180,21 +244,30 @@ export default function App() {
           ) : null}
           <section className="flex-1 space-y-3.5 overflow-auto p-3.5" aria-live="polite" aria-relevant="additions">
             {chat.messages.length === 0 ? (
-              <EmptyState onChipClick={(text) => chat.sendPrompt(text)} />
+              <EmptyState onChipClick={(text) => chat.sendPrompt(text, undefined, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined)} />
             ) : (
-              chat.messages.map((item) => (
-                <ChatMessage 
-                  key={item.id} 
-                  role={item.role} 
-                  content={item.content} 
-                  onSave={item.role === "assistant" ? () => saveMessage(item) : undefined}
-                  onActionError={chat.setError}
-                />
-              ))
+              chat.messages.map((item) => {
+                if (item.kind === "tool-trace") {
+                  return <ToolTraceCard key={item.id} trace={item.trace} />;
+                }
+                return (
+                  <ChatMessage 
+                    key={item.id} 
+                    role={item.role} 
+                    content={item.content} 
+                    debug={item.debug}
+                    onSave={item.role === "assistant" ? () => saveMessage(item) : undefined}
+                    onActionError={chat.setError}
+                  />
+                );
+              })
             )}
-            {chat.streaming && chat.messages.length > 0 && chat.messages[chat.messages.length - 1].content === "" ? (
-              <TypingIndicator phase={chat.streamingPhase} />
-            ) : null}
+            {(() => {
+              const last = chat.messages[chat.messages.length - 1];
+              return chat.streaming && chat.messages.length > 0 && last?.kind === "message" && last.content === "" ? (
+                <TypingIndicator phase={chat.streamingPhase} />
+              ) : null;
+            })()}
             {chat.streaming && chat.streamingPhase === "connecting" && (
               <div className="flex justify-center">
                 <button
@@ -210,7 +283,7 @@ export default function App() {
           
           <ChatComposer
             disabled={chat.streaming || missingApiKey || missingModel}
-            onSend={(text, thinkingMode) => chat.sendPrompt(text, thinkingMode)}
+            onSend={(text, thinkingMode) => chat.sendPrompt(text, thinkingMode, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined)}
             showMissingKeyBanner={missingApiKey || missingModel}
             missingType={missingApiKey ? "key" : "model"}
             providerLabel={provider?.label}

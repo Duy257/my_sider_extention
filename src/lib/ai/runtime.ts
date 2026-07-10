@@ -22,8 +22,35 @@ const THINKING_PARAM_MAP: Record<string, Record<string, Record<string, unknown> 
 
 export function getThinkingParams(
   providerId: string,
-  mode: "off" | "low" | "medium" | "high" | "max"
+  mode: "off" | "low" | "medium" | "high" | "max",
+  model?: string
 ): Record<string, unknown> | undefined {
+  const isDeepSeek = model?.toLowerCase().includes("deepseek");
+
+  if (isDeepSeek) {
+    if (mode === "off") {
+      return {
+        thinking: {
+          type: "disabled"
+        }
+      };
+    }
+
+    const baseParams: Record<string, unknown> = {
+      thinking: {
+        type: "enabled"
+      }
+    };
+
+    if (mode === "high") {
+      baseParams.reasoning_effort = "high";
+    } else if (mode === "max") {
+      baseParams.reasoning_effort = "max";
+    }
+
+    return baseParams;
+  }
+
   if (mode === "off") return undefined;
   const params = THINKING_PARAM_MAP[providerId]?.[mode];
   if (!params && process.env.NODE_ENV !== "production") {
@@ -43,6 +70,7 @@ export type ProviderRuntimeConfig = {
   requiresApiKey: boolean; // provider có yêu cầu API key không
   knownModels: string[];   // danh sách model đã biết
   thinkingMode: "off" | "low" | "medium" | "high" | "max";
+  devMode: boolean;
 };
 
 // Kết quả resolve — dùng discriminated union để xử lý thành công/thất bại
@@ -83,7 +111,16 @@ export function resolveProviderRuntimeConfig(settings: Settings): ProviderRuntim
       model,
       requiresApiKey: provider.requiresApiKey,
       knownModels: provider.knownModels,
-      thinkingMode: settings.thinkingMode ?? "off"
+      thinkingMode: settings.thinkingMode ?? "off",
+      devMode: settings.devMode === true
     }
   };
+}
+
+export function getDevStreamParams(
+  providerId: string,
+  devMode: boolean
+): Record<string, unknown> | undefined {
+  if (!devMode || providerId !== "openai") return undefined;
+  return { stream_options: { include_usage: true } };
 }

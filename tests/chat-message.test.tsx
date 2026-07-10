@@ -53,3 +53,24 @@ test("shows saved feedback only after save resolves", async () => {
   expect(onSave).toHaveBeenCalledTimes(1);
   expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
 });
+
+test("renders DebugDetails only when debug trace is present in assistant message", () => {
+  const debugTrace = {
+    requestId: "req-1",
+    surface: "sidepanel" as const,
+    feature: "chat" as const,
+    status: "success" as const,
+    providerId: "openai",
+    model: "gpt-4o",
+    requestedThinkingMode: "off" as const,
+    effectiveRequestParams: {},
+    startedAt: 1000,
+    thinking: { state: "not-returned" as const, content: "" }
+  };
+
+  const { rerender } = render(<ChatMessage role="assistant" content="Response" />);
+  expect(screen.queryByText(/DEV/)).not.toBeInTheDocument();
+
+  rerender(<ChatMessage role="assistant" content="Response" debug={debugTrace} />);
+  expect(screen.getByText(/DEV/)).toBeInTheDocument();
+});

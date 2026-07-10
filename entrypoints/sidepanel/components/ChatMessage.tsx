@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MessageContent } from "../../../src/lib/ui/MessageContent";
+import { DebugDetails } from "../../../src/lib/devtools/components/DebugDetails";
+import type { AiDevTrace } from "../../../src/lib/devtools/types";
 
 function RobotAvatar() {
   return (
@@ -18,6 +20,7 @@ function RobotAvatar() {
 export function ChatMessage(props: {
   role: "user" | "assistant" | "system";
   content: string;
+  debug?: AiDevTrace;
   onSave?: () => void | Promise<void>;
   onActionError?: (message: string) => void;
 }) {
@@ -87,24 +90,27 @@ export function ChatMessage(props: {
           <MessageContent content={props.content} />
         </div>
         {!isUser && (
-          <div className={`mt-1 flex items-center gap-1 opacity-60 transition-opacity duration-200 group-hover:opacity-100 ${isUser ? "justify-end" : "justify-start"}`}>
-            <button
-              className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
-              title="Sao chép"
-              onClick={copyMessage}
-            >
-              {copied ? "Đã sao chép" : "Sao chép"}
-            </button>
-            {props.onSave ? (
+          <>
+            <div className={`mt-1 flex items-center gap-1 opacity-60 transition-opacity duration-200 group-hover:opacity-100 ${isUser ? "justify-end" : "justify-start"}`}>
               <button
                 className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
-                title="Lưu"
-                onClick={saveMessage}
+                title="Sao chép"
+                onClick={copyMessage}
               >
-                {saved ? "Đã lưu" : "Lưu kết quả"}
+                {copied ? "Đã sao chép" : "Sao chép"}
               </button>
-            ) : null}
-          </div>
+              {props.onSave ? (
+                <button
+                  className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
+                  title="Lưu"
+                  onClick={saveMessage}
+                >
+                  {saved ? "Đã lưu" : "Lưu kết quả"}
+                </button>
+              ) : null}
+            </div>
+            {props.debug && <DebugDetails trace={props.debug} />}
+          </>
         )}
       </div>
     </div>

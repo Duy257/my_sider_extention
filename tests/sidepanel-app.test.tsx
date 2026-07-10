@@ -75,3 +75,52 @@ test("chat mới clears messages and cancels an active stream", async () => {
   expect(port.disconnect).toHaveBeenCalled();
   expect(screen.queryByText("Xin chào")).not.toBeInTheDocument();
 });
+
+test("renders tool trace when read page finishes in developer mode", async () => {
+  const user = userEvent.setup();
+  (vi.mocked(chrome.storage.local.get) as any).mockResolvedValue({
+    settings: {
+      schemaVersion: 5,
+      data: {
+        providerId: "openai",
+        apiKeys: { openai: "sk-test" },
+        selectedModels: {},
+        thinkingMode: "off",
+        devMode: true
+      }
+    }
+  });
+
+  const toolTrace = {
+    requestId: "tool-req-123",
+    tool: "read-page",
+    status: "success",
+    startedAt: 1000,
+    finishedAt: 1200,
+    metadata: {
+      extractor: "readability",
+      contentChars: 120,
+      warnings: 0
+    }
+  };
+
+  vi.mocked(chrome.runtime.sendMessage).mockImplementation((message: any) => {
+    if (message?.type === "EXTRACT_ACTIVE_PAGE") {
+      return Promise.resolve({
+        title: "Báo cáo",
+        url: "https://example.com/report",
+        text: "Nội dung quan trọng",
+        warnings: [],
+        toolTrace
+      });
+    }
+    return Promise.resolve(null);
+  });
+
+  render(<App />);
+  const readPageBtn = await screen.findByTitle("Đọc trang");
+  await user.click(readPageBtn);
+
+  expect(await screen.findByText(/TOOL \/ read-page/i)).toBeInTheDocument();
+});
+

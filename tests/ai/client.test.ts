@@ -142,6 +142,83 @@ describe("streamChatCompletion", () => {
     expect(onError).toHaveBeenCalledWith("Network error. Check your internet connection.");
     vi.unstubAllGlobals();
   });
+
+  it("handles reasoning, usage, first token and finish reason callbacks in Developer Mode", async () => {
+    const sse = [
+      'data: {"choices":[{"delta":{"reasoning_content":"Plan"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"Answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":7,"total_tokens":19}}\n\n',
+      "data: [DONE]\n\n"
+    ];
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      body: createMockSSE(sse)
+    }));
+
+    const deltas: string[] = [];
+    const reasoningDeltas: string[] = [];
+    const usages: any[] = [];
+    const finishReasons: string[] = [];
+    const onFirstToken = vi.fn();
+    const onDone = vi.fn();
+
+    await streamChatCompletion({
+      baseUrl: "https://api.openai.com/v1/chat/completions",
+      apiKey: "sk-test",
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Hi" }],
+      callbacks: {
+        onDelta: (d) => deltas.push(d),
+        onReasoningDelta: (r) => reasoningDeltas.push(r),
+        onUsage: (u) => usages.push(u),
+        onFinishReason: (f) => finishReasons.push(f),
+        onFirstToken,
+        onDone,
+        onError: vi.fn()
+      }
+    });
+
+    expect(onFirstToken).toHaveBeenCalledOnce();
+    expect(deltas).toEqual(["Answer"]);
+    expect(reasoningDeltas).toEqual(["Plan"]);
+    expect(usages).toEqual([{ inputTokens: 12, outputTokens: 7, totalTokens: 19 }]);
+    expect(finishReasons).toEqual(["stop"]);
+    expect(onDone).toHaveBeenCalledOnce();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("recovers from malformed debug payload and continues content streaming", async () => {
+    const sse = [
+      'data: {"choices":[{"delta":{"reasoning_content": {}, "content": "Answer"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n"
+    ];
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      body: createMockSSE(sse)
+    }));
+
+    const deltas: string[] = [];
+    const onError = vi.fn();
+
+    await streamChatCompletion({
+      baseUrl: "https://api.openai.com/v1/chat/completions",
+      apiKey: "sk-test",
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Hi" }],
+      callbacks: {
+        onDelta: (d) => deltas.push(d),
+        onDone: vi.fn(),
+        onError
+      }
+    });
+
+    expect(deltas).toEqual(["Answer"]);
+    expect(onError).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("fetchCompletion", () => {

@@ -2,6 +2,8 @@
 
 import { mapStreamError } from "./stream";
 import type { AiMessage } from "./types";
+import { readStreamDebugEvent } from "../devtools/stream";
+import type { TokenUsage } from "../devtools/types";
 
 // Thời gian timeout mặc định cho mọi request AI: 20 giây
 const REQUEST_TIMEOUT = 20_000;
@@ -97,6 +99,9 @@ type StreamCallbacks = {
   onConnecting?: () => void; // đang kết nối đến provider
   onFirstToken?: () => void; // nhận được token đầu tiên
   onDelta: (delta: string) => void; // nhận được một phần nội dung text
+  onReasoningDelta?: (delta: string) => void;
+  onUsage?: (usage: TokenUsage) => void;
+  onFinishReason?: (finishReason: string) => void;
   onDone: () => void; // stream hoàn tất
   onError: (message: string) => void; // có lỗi xảy ra
 };
@@ -117,6 +122,15 @@ export async function streamChatCompletion(input: {
   let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
   let isWatchdogTimeout = false;
   let hasReceivedFirstToken = false;
+
+  function markFirstActivity() {
+    if (hasReceivedFirstToken) return;
+    hasReceivedFirstToken = true;
+    clearTimeout(watchdogTimer);
+    try {
+      input.callbacks.onFirstToken?.();
+    } catch {}
+  }
 
   try {
     // Gửi POST request với timeout (fetchWithTimeout tự combine signal)
@@ -216,16 +230,24 @@ export async function streamChatCompletion(input: {
         // Parse JSON và extract nội dung delta
         try {
           const parsed = JSON.parse(data);
+          
+          try {
+            const debugEvent = readStreamDebugEvent(parsed);
+            if (debugEvent.reasoningDelta) {
+              markFirstActivity();
+              input.callbacks.onReasoningDelta?.(debugEvent.reasoningDelta);
+            }
+            if (debugEvent.usage) {
+              input.callbacks.onUsage?.(debugEvent.usage);
+            }
+            if (debugEvent.finishReason) {
+              input.callbacks.onFinishReason?.(debugEvent.finishReason);
+            }
+          } catch {}
+
           const delta = parsed?.choices?.[0]?.delta?.content;
           if (delta) {
-            // Token đầu tiên — tắt watchdog và gọi onFirstToken
-            if (!hasReceivedFirstToken) {
-              hasReceivedFirstToken = true;
-              clearTimeout(watchdogTimer);
-              try {
-                input.callbacks.onFirstToken?.();
-              } catch {}
-            }
+            markFirstActivity();
             try {
               input.callbacks.onDelta(delta);
             } catch {}
@@ -242,7 +264,7 @@ export async function streamChatCompletion(input: {
     if (isWatchdogTimeout) {
       try {
         input.callbacks.onError(
-          "Provider is too slow. No response after 15 seconds.",
+          "Provider is too slow. No response after 30 seconds.",
         );
       } catch {}
       return;

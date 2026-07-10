@@ -5,6 +5,10 @@ import type { AiPortResponse } from "../messaging/types";
 import type { WindowState, StreamState } from "./types";
 import { WindowHeader } from "./WindowHeader";
 import { FloatingChatMessage } from "./FloatingChatMessage";
+import type { ToolDevTrace, AiDevTrace } from "../devtools/types";
+import { ToolTraceCard } from "../devtools/components/ToolTraceCard";
+import { DebugDetails } from "../devtools/components/DebugDetails";
+import { appendReasoning, applyDebugUpdate } from "../devtools/trace-reducer";
 
 const DEFAULT_WIDTH = 380;
 const DEFAULT_HEIGHT = 500;
@@ -66,11 +70,13 @@ export function FloatingWindow(props: {
   prompt: string;
   requestId: string;
   onClose: () => void;
+  toolTrace?: ToolDevTrace;
 }) {
   const [windowState, setWindowState] = useState<WindowState>("default");
   const [streamState, setStreamState] = useState<StreamState>("loading");
   const [responseContent, setResponseContent] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [aiTrace, setAiTrace] = useState<AiDevTrace | undefined>(undefined);
 
   // Position and size state
   const [pos, setPos] = useState({ top: props.initialPosition.top, left: props.initialPosition.left });
@@ -124,9 +130,24 @@ export function FloatingWindow(props: {
         setResponseContent((prev) => prev + message.delta);
       }
 
+      if (message.type === "AI_STREAM_DEBUG_START") {
+        setAiTrace(message.trace);
+      }
+
+      if (message.type === "AI_STREAM_REASONING") {
+        setAiTrace((prev) => prev ? appendReasoning(prev, message.delta) : prev);
+      }
+
+      if (message.type === "AI_STREAM_DEBUG_UPDATE") {
+        setAiTrace((prev) => prev ? applyDebugUpdate(prev, { usage: message.usage, finishReason: message.finishReason }) : prev);
+      }
+
       if (message.type === "AI_STREAM_DONE") {
         isDoneRef.current = true;
         setStreamState("done");
+        if (message.trace) {
+          setAiTrace(message.trace);
+        }
         port.disconnect();
       }
 
@@ -134,20 +155,26 @@ export function FloatingWindow(props: {
         isDoneRef.current = true;
         setStreamState("error");
         setErrorMessage(message.message);
+        if (message.trace) {
+          setAiTrace(message.trace);
+        }
         port.disconnect();
       }
     });
+
+    const isDevModeActive = Boolean(props.toolTrace);
 
     port.postMessage({
       type: "AI_CHAT_REQUEST",
       requestId: props.requestId,
       messages: buildUserChatMessages(props.prompt),
+      ...(isDevModeActive ? { devContext: { surface: "floating-window", feature: "chat" } } : {})
     });
 
     return () => {
       try { port.disconnect(); } catch {}
     };
-  }, [props.requestId, props.prompt]);
+  }, [props.requestId, props.prompt, props.toolTrace]);
 
   // Keyboard event handlers
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -312,10 +339,29 @@ export function FloatingWindow(props: {
             </div>
           )}
           {(streamState === "streaming" || streamState === "done") && (
-            <FloatingChatMessage content={responseContent} streamState={streamState} />
+            <>
+              <FloatingChatMessage content={responseContent} streamState={streamState} />
+              {props.toolTrace && (
+                <div style={{ marginTop: "12px" }}>
+                  <ToolTraceCard trace={props.toolTrace} compact />
+                </div>
+              )}
+            </>
           )}
           {streamState === "error" && (
-            <div style={styles.errorContainer}>{errorMessage}</div>
+            <>
+              <div style={styles.errorContainer}>{errorMessage}</div>
+              {props.toolTrace && (
+                <div style={{ marginTop: "12px" }}>
+                  <ToolTraceCard trace={props.toolTrace} compact />
+                </div>
+              )}
+            </>
+          )}
+          {aiTrace && (
+            <div style={{ marginTop: "12px" }}>
+              <DebugDetails trace={aiTrace} compact />
+            </div>
           )}
         </div>
       )}

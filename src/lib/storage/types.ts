@@ -6,6 +6,7 @@ export type Settings = {
   selectedModels: Record<string, string | undefined>;
   defaultLanguage: "vi" | "en";
   thinkingMode: "off" | "low" | "medium" | "high" | "max";
+  devMode: boolean;
   updatedAt: string;
 };
 

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPanel } from "../entrypoints/sidepanel/components/SettingsPanel";
 import type { Settings } from "../src/lib/storage/types";
+import { DEV_COPY } from "../src/lib/devtools/copy";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {
@@ -11,6 +12,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     selectedModels: {},
     defaultLanguage: "vi",
     thinkingMode: "off",
+    devMode: false,
     updatedAt: "2026-06-25T00:00:00.000Z",
     ...overrides
   };
@@ -70,5 +72,14 @@ describe("SettingsPanel", () => {
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: "TEST_CONNECTION", requestId: expect.any(String) });
     expect(await screen.findByText("Kết nối thành công.")).toBeInTheDocument();
+  });
+
+  it("persists Developer Mode from the settings checkbox", async () => {
+    const onChange = vi.fn();
+    render(<SettingsPanel settings={settings()} onChange={onChange} />);
+
+    await userEvent.click(screen.getByLabelText(DEV_COPY.settingsToggle));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ devMode: true }));
   });
 });

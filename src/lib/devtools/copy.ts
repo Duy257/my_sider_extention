@@ -1,0 +1,15 @@
+export const DEV_COPY = {
+  settingsLabel: "Developer mode",
+  settingsToggle: "Bật Dev Mode",
+  settingsHelp: "Hiển thị reasoning, tham số request, token usage và trace thao tác extension để phục vụ phát triển.",
+  summaryPrefix: "DEV",
+  request: "REQUEST",
+  thinking: "THINKING",
+  usage: "USAGE",
+  unavailableUsage: "N/A — provider không gửi usage",
+  thinkingNotReturned: "Provider không gửi reasoning.",
+  copyThinking: "Sao chép reasoning",
+  copied: "Đã sao chép",
+  tool: "TOOL",
+  status: "STATUS",
+} as const;
