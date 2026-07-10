@@ -11,6 +11,7 @@ describe("storage defaults", () => {
       apiKeys: {},
       selectedModels: {},
       defaultLanguage: "vi",
+      thinkingMode: "off",
       updatedAt: "2026-06-25T00:00:00.000Z"
     });
   });
@@ -54,6 +55,7 @@ describe("storage defaults", () => {
       apiKeys: { openai: "sk-old" },
       selectedModels: { openai: "gpt-5.4-mini" },
       defaultLanguage: "en",
+      thinkingMode: "off",
       updatedAt: "2026-06-24T00:00:00.000Z"
     });
   });

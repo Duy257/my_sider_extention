@@ -67,6 +67,7 @@ export function migrateSettingsData(value: unknown, fallback: Settings): Setting
     apiKeys,
     selectedModels,
     defaultLanguage: data.defaultLanguage === "en" ? "en" : "vi",
+    thinkingMode: "off",
     updatedAt: trimString(data.updatedAt) ?? fallback.updatedAt
   };
 }

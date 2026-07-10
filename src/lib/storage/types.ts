@@ -5,6 +5,7 @@ export type Settings = {
   apiKeys: Record<string, string | undefined>;
   selectedModels: Record<string, string | undefined>;
   defaultLanguage: "vi" | "en";
+  thinkingMode: "off" | "low" | "medium" | "high" | "max";
   updatedAt: string;
 };
 

@@ -8,6 +8,7 @@ export function createDefaultSettings(now = new Date().toISOString()): Settings 
     apiKeys: {},
     selectedModels: {},
     defaultLanguage: "vi",
+    thinkingMode: "off",
     updatedAt: now
   };
 }
