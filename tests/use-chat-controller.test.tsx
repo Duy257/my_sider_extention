@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useChatController } from "../entrypoints/sidepanel/hooks/useChatController";
+import { useChatController, type ChatMessageItem } from "../entrypoints/sidepanel/hooks/useChatController";
+import type { AiDevTrace } from "../src/lib/devtools/types";
 import { portEntries } from "./setup";
 
 describe("useChatController", () => {
@@ -33,7 +34,8 @@ describe("useChatController", () => {
     act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Chào" }));
     act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_DONE", requestId }));
 
-    expect(result.current.messages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
+    const chatMessages = result.current.messages.filter((m): m is ChatMessageItem => m.kind === "message");
+    expect(chatMessages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
       { role: "user", content: "Xin chào" },
       { role: "assistant", content: "Chào" }
     ]);
@@ -89,5 +91,54 @@ describe("useChatController", () => {
     act(() => result.current.dismissError());
 
     expect(result.current.error).toBe("");
+  });
+
+  it("handles Developer Mode debug trace stream events and attaches trace to assistant message", () => {
+    const { result } = renderHook(() => useChatController({ canSend: true }));
+
+    const devContext = { surface: "sidepanel" as const, feature: "chat" as const };
+    act(() => result.current.sendPrompt("Chào", undefined, devContext));
+
+    const port = (chrome.runtime.connect as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+    expect(port.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      devContext
+    }));
+
+    const requestId = port.postMessage.mock.calls[0][0].requestId;
+    const initialTrace: AiDevTrace = {
+      requestId,
+      surface: "sidepanel",
+      feature: "chat",
+      status: "pending",
+      providerId: "openai",
+      model: "gpt-4o",
+      requestedThinkingMode: "off",
+      effectiveRequestParams: {},
+      startedAt: 1000,
+      thinking: { state: "pending", content: "" }
+    };
+
+    act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_DEBUG_START", requestId, trace: initialTrace }));
+    act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_REASONING", requestId, delta: "Plan" }));
+    act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Answer" }));
+    
+    const completedTrace: AiDevTrace = {
+      ...initialTrace,
+      status: "success",
+      finishedAt: 2000,
+      thinking: { state: "returned", content: "Plan" },
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 }
+    };
+    act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_DONE", requestId, trace: completedTrace }));
+
+    const chatMessages = result.current.messages.filter((m): m is ChatMessageItem => m.kind === "message");
+    expect(chatMessages.map((m) => ({ role: m.role, content: m.content }))).toEqual([
+      { role: "user", content: "Chào" },
+      { role: "assistant", content: "Answer" }
+    ]);
+    
+    // Assistant message must have the final trace attached
+    const assistantMessage = chatMessages.find((m) => m.role === "assistant");
+    expect(assistantMessage?.debug).toEqual(completedTrace);
   });
 });
