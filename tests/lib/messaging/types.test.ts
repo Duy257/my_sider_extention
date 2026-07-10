@@ -37,6 +37,25 @@ describe("ExtensionMessage", () => {
     expect(msg.type).toBe("READER_SAVE_SESSION");
   });
 
+  it("accepts LOAD_READER_ERROR", () => {
+    const toolTrace: ToolDevTrace = {
+      requestId: "tool-2",
+      tool: "open-reader",
+      status: "error",
+      startedAt: 100,
+      finishedAt: 150,
+      metadata: {},
+      error: "Timeout waiting for Reader to be ready"
+    };
+    const msg: ExtensionMessage = {
+      type: "LOAD_READER_ERROR",
+      requestId: "abc",
+      error: "Handoff timeout",
+      toolTrace
+    };
+    expect(msg.type).toBe("LOAD_READER_ERROR");
+  });
+
   it("accepts ephemeral AI and tool dev trace contracts", () => {
     const aiTrace: AiDevTrace = {
       requestId: "request-1",
