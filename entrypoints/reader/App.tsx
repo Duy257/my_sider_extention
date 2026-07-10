@@ -5,6 +5,8 @@ import { ProgressBar } from "./components/ProgressBar";
 import { ReaderHeader } from "./components/ReaderHeader";
 import { ReaderView } from "./components/ReaderView";
 import type { SelectionInfo } from "./types";
+import { ToolTraceCard } from "../../src/lib/devtools/components/ToolTraceCard";
+import type { ToolDevTrace } from "../../src/lib/devtools/types";
 
 type PageData = {
   title: string;
@@ -18,6 +20,8 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [toolTrace, setToolTrace] = useState<ToolDevTrace | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -25,13 +29,22 @@ export default function App() {
     chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId }).catch(() => {});
 
     function handleMessage(msg: any) {
-      if (msg.type === "LOAD_READER_CONTENT") {
+      if (msg.type === "LOAD_READER_CONTENT" && msg.requestId === requestId) {
         setPageData({
           title: msg.title || "",
           url: msg.url || "",
           content: msg.content || "",
           excerpt: msg.excerpt || "",
         });
+        if (msg.toolTrace) {
+          setToolTrace(msg.toolTrace);
+        }
+      }
+      if (msg.type === "LOAD_READER_ERROR" && msg.requestId === requestId) {
+        setError(msg.error || "Không thể tải nội dung.");
+        if (msg.toolTrace) {
+          setToolTrace(msg.toolTrace);
+        }
       }
     }
     chrome.runtime.onMessage.addListener(handleMessage);
@@ -54,6 +67,19 @@ export default function App() {
       date: new Date().toISOString(),
     }).then(() => setSaveStatus("saved")).catch(() => setSaveStatus("idle"));
   }, [saveStatus, pageData]);
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-warm-bg text-stone-50 font-mono p-4">
+        <div className="max-w-md w-full space-y-4">
+          <div className="rounded-xl border border-red-900/30 bg-red-950/20 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+          {toolTrace && <ToolTraceCard trace={toolTrace} />}
+        </div>
+      </div>
+    );
+  }
 
   if (!pageData) {
     return (
@@ -89,6 +115,11 @@ export default function App() {
       ) : null}
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-auto">
+          {toolTrace && (
+            <div className="mx-4 mt-4 animate-fade-in-up">
+              <ToolTraceCard trace={toolTrace} />
+            </div>
+          )}
           <ReaderView
             content={pageData.content}
             title={pageData.title}
