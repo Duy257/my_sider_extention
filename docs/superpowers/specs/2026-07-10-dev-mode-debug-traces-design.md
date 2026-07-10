@@ -197,6 +197,8 @@ export type ToolDevTrace = {
 
 `effectiveRequestParams` is built from an allow-list. It may include `reasoning_effort` and a safe stream-usage marker, but never arbitrary request-body fields.
 
+`src/lib/devtools/background-trace.ts` owns pure background-facing lifecycle helpers: create initial AI/tool traces, convert normalized client callbacks into typed Port responses, and finalize a trace as success, error, cancelled, or interrupted. `entrypoints/background.ts` only wires these helpers to Chrome ports and runtime messages, keeping the event contract unit-testable without importing the WXT background entrypoint.
+
 ### 6.3 AI Port Contract
 
 `AiPortRequest` gains an optional, caller-supplied context that labels the surface and feature. The client never sends `devMode`; background reads it from settings.
@@ -248,7 +250,7 @@ Provider usage strategy is conservative:
 ### 7.2 Read Page
 
 1. `App.readPage()` sends `EXTRACT_ACTIVE_PAGE` with a request ID.
-2. Background starts an `open-reader`-independent `ToolDevTrace`, injects/contacts the content agent, and returns page extraction plus optional trace metadata.
+2. Background starts a `read-page` `ToolDevTrace`, injects/contacts the content agent, and returns page extraction plus optional trace metadata.
 3. On success, App adds a `tool-trace` item then sends the existing generated page prompt through the sidepanel AI flow.
 4. On failure or empty page content, the existing user-facing error remains; the trace card changes to `error` when Dev Mode is active.
 
@@ -297,6 +299,7 @@ Trace data is ephemeral. Saved chat results retain only the existing `outputMark
 | `src/lib/devtools/copy.ts` | Central Vietnamese Developer Mode display copy (`DEV_COPY`). |
 | `src/lib/devtools/stream.ts` | Validate/normalize reasoning, usage, and finish metadata from parsed SSE objects. |
 | `src/lib/devtools/trace-reducer.ts` | Pure trace state reducers shared by Sidepanel, Floating Window, and Reader. |
+| `src/lib/devtools/background-trace.ts` | Pure background trace factories and typed Port event emitter. |
 | `src/lib/devtools/components/DebugDetails.tsx` | Shared expandable AI debug renderer. |
 | `src/lib/devtools/components/ToolTraceCard.tsx` | Shared expandable extension-operation trace renderer. |
 | `tests/devtools/stream.test.ts` | Stream normalization and malformed-value coverage. |
