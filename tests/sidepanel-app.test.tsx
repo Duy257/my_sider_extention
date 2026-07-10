@@ -78,7 +78,7 @@ test("chat mới clears messages and cancels an active stream", async () => {
 
 test("renders tool trace when read page finishes in developer mode", async () => {
   const user = userEvent.setup();
-  vi.mocked(chrome.storage.local.get).mockResolvedValue({
+  (vi.mocked(chrome.storage.local.get) as any).mockResolvedValue({
     settings: {
       schemaVersion: 5,
       data: {

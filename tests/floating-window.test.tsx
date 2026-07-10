@@ -1,9 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FloatingWindow } from "../src/lib/floating-window/FloatingWindow";
+import { portEntries } from "./setup";
 
 describe("FloatingWindow", () => {
+  beforeEach(() => {
+    portEntries.splice(0, portEntries.length);
+    vi.clearAllMocks();
+  });
+
   const defaultProps = {
     initialPosition: { top: 100, left: 100 },
     prompt: "Test prompt",
@@ -33,5 +39,37 @@ describe("FloatingWindow", () => {
     const closeBtn = screen.getByTitle("Đóng");
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders ToolTraceCard when toolTrace is provided", async () => {
+    const toolTrace = {
+      requestId: "tool-req-123",
+      tool: "selection-action" as const,
+      status: "success" as const,
+      startedAt: 1000,
+      finishedAt: 1200,
+      metadata: {
+        action: "summarize",
+        textLength: 50
+      }
+    };
+    render(React.createElement(FloatingWindow, { ...defaultProps, toolTrace }));
+    
+    const { act } = await import("@testing-library/react");
+    
+    // Allow useEffect to run and connect port
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const port = portEntries[0];
+    const requestId = (chrome.runtime.connect as any).mock.results[0].value.postMessage.mock.calls[0][0].requestId;
+    
+    act(() => {
+      port.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Answer text" });
+    });
+
+    expect(await screen.findByText("Answer text")).toBeInTheDocument();
+    expect(screen.getByText(/TOOL \/ selection-action/i)).toBeInTheDocument();
   });
 });

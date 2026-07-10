@@ -5,6 +5,8 @@ import type { AiPortResponse } from "../messaging/types";
 import type { WindowState, StreamState } from "./types";
 import { WindowHeader } from "./WindowHeader";
 import { FloatingChatMessage } from "./FloatingChatMessage";
+import type { ToolDevTrace } from "../devtools/types";
+import { ToolTraceCard } from "../devtools/components/ToolTraceCard";
 
 const DEFAULT_WIDTH = 380;
 const DEFAULT_HEIGHT = 500;
@@ -66,6 +68,7 @@ export function FloatingWindow(props: {
   prompt: string;
   requestId: string;
   onClose: () => void;
+  toolTrace?: ToolDevTrace;
 }) {
   const [windowState, setWindowState] = useState<WindowState>("default");
   const [streamState, setStreamState] = useState<StreamState>("loading");
@@ -312,10 +315,24 @@ export function FloatingWindow(props: {
             </div>
           )}
           {(streamState === "streaming" || streamState === "done") && (
-            <FloatingChatMessage content={responseContent} streamState={streamState} />
+            <>
+              <FloatingChatMessage content={responseContent} streamState={streamState} />
+              {props.toolTrace && (
+                <div style={{ marginTop: "12px" }}>
+                  <ToolTraceCard trace={props.toolTrace} compact />
+                </div>
+              )}
+            </>
           )}
           {streamState === "error" && (
-            <div style={styles.errorContainer}>{errorMessage}</div>
+            <>
+              <div style={styles.errorContainer}>{errorMessage}</div>
+              {props.toolTrace && (
+                <div style={{ marginTop: "12px" }}>
+                  <ToolTraceCard trace={props.toolTrace} compact />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

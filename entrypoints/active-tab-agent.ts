@@ -140,6 +140,7 @@ export default defineUnlistedScript(() => {
         prompt: message.prompt,
         requestId: message.requestId,
         title: message.title,
+        toolTrace: message.toolTrace,
       });
       sendResponse({ ok: true });
       return true;
