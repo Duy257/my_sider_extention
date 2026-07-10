@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveProviderRuntimeConfig } from "../../src/lib/ai/runtime";
+import { getThinkingParams, resolveProviderRuntimeConfig } from "../../src/lib/ai/runtime";
 import type { Settings } from "../../src/lib/storage/types";
 
 function settings(overrides: Partial<Settings>): Settings {
@@ -67,5 +67,51 @@ describe("resolveProviderRuntimeConfig", () => {
       ok: false,
       error: "Selected provider is not available. Choose another provider in Settings."
     });
+  });
+
+  it("passes thinkingMode from settings to config", () => {
+    expect(resolveProviderRuntimeConfig(settings({
+      providerId: "opencode",
+      apiKeys: { opencode: "sk-open" },
+      selectedModels: { opencode: "gpt-4o" },
+      thinkingMode: "high"
+    }))).toEqual({
+      ok: true,
+      config: expect.objectContaining({
+        providerId: "opencode",
+        thinkingMode: "high"
+      })
+    });
+  });
+
+  it("defaults thinkingMode to off when missing", () => {
+    const s = settings({ apiKeys: { opencode: "sk" }, selectedModels: { opencode: "m" }, providerId: "opencode" });
+    delete (s as any).thinkingMode;
+    expect(resolveProviderRuntimeConfig(s)).toEqual({
+      ok: true,
+      config: expect.objectContaining({ thinkingMode: "off" })
+    });
+  });
+});
+
+describe("getThinkingParams", () => {
+  it("returns reasoning_effort for openai medium", () => {
+    expect(getThinkingParams("openai", "medium")).toEqual({ reasoning_effort: "medium" });
+  });
+
+  it("returns undefined for off", () => {
+    expect(getThinkingParams("openai", "off")).toBeUndefined();
+  });
+
+  it("maps max to high for openai", () => {
+    expect(getThinkingParams("openai", "max")).toEqual({ reasoning_effort: "high" });
+  });
+
+  it("returns undefined for unknown provider", () => {
+    expect(getThinkingParams("lmstudio", "medium")).toBeUndefined();
+  });
+
+  it("returns reasoning_effort for opencode medium", () => {
+    expect(getThinkingParams("opencode", "medium")).toEqual({ reasoning_effort: "medium" });
   });
 });

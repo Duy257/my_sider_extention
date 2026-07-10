@@ -3,6 +3,30 @@
 import { getProvider } from "./providers";
 import type { Settings } from "../storage/types";
 
+const THINKING_PARAM_MAP: Record<string, Record<string, Record<string, unknown> | undefined>> = {
+  openai: {
+    off: undefined,
+    low: { reasoning_effort: "low" },
+    medium: { reasoning_effort: "medium" },
+    high: { reasoning_effort: "high" },
+    max: { reasoning_effort: "high" },
+  },
+  opencode: {
+    off: undefined,
+    low: { reasoning_effort: "low" },
+    medium: { reasoning_effort: "medium" },
+    high: { reasoning_effort: "high" },
+    max: { reasoning_effort: "high" },
+  },
+};
+
+export function getThinkingParams(
+  providerId: string,
+  mode: "off" | "low" | "medium" | "high" | "max"
+): Record<string, unknown> | undefined {
+  return THINKING_PARAM_MAP[providerId]?.[mode];
+}
+
 // Cấu hình đầy đủ của một provider ở runtime, đã được resolve từ settings
 export type ProviderRuntimeConfig = {
   providerId: string;      // id của provider
@@ -13,6 +37,7 @@ export type ProviderRuntimeConfig = {
   model: string;           // model được chọn
   requiresApiKey: boolean; // provider có yêu cầu API key không
   knownModels: string[];   // danh sách model đã biết
+  thinkingMode: "off" | "low" | "medium" | "high" | "max";
 };
 
 // Kết quả resolve — dùng discriminated union để xử lý thành công/thất bại
@@ -52,7 +77,8 @@ export function resolveProviderRuntimeConfig(settings: Settings): ProviderRuntim
       apiKey,
       model,
       requiresApiKey: provider.requiresApiKey,
-      knownModels: provider.knownModels
+      knownModels: provider.knownModels,
+      thinkingMode: settings.thinkingMode ?? "off"
     }
   };
 }
