@@ -1,9 +1,10 @@
 import { fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
-import { getThinkingParams, resolveProviderRuntimeConfig } from "../src/lib/ai/runtime";
+import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../src/lib/ai/runtime";
 import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest, ExtensionMessage } from "../src/lib/messaging/types";
 import { getSettings } from "../src/lib/storage";
 import type { Settings } from "../src/lib/storage/types";
+import { createAiTrace, createAiPortTraceEmitter } from "../src/lib/devtools/background-trace";
 
 let settingsCache: { settings: Settings; timestamp: number } | null = null;
 const SETTINGS_CACHE_TTL = 5_000; // 5 seconds
@@ -75,6 +76,8 @@ export default defineBackground(() => {
         try { port.postMessage(msg); } catch {}
       };
 
+      let emitter: ReturnType<typeof createAiPortTraceEmitter> | undefined;
+
       try {
         const settings = await getCachedSettings();
         const runtime = resolveProviderRuntimeConfig(settings);
@@ -85,7 +88,27 @@ export default defineBackground(() => {
         }
 
         const thinkingMode = message.thinkingMode ?? runtime.config.thinkingMode;
-        const extraBodyParams = getThinkingParams(runtime.config.providerId, thinkingMode);
+        const thinkingParams = getThinkingParams(runtime.config.providerId, thinkingMode);
+        const devStreamParams = getDevStreamParams(runtime.config.providerId, runtime.config.devMode);
+        const extraBodyParams = thinkingParams || devStreamParams
+          ? { ...(thinkingParams ?? {}), ...(devStreamParams ?? {}) }
+          : undefined;
+
+        if (runtime.config.devMode && message.devContext) {
+          const trace = createAiTrace({
+            requestId: message.requestId,
+            context: message.devContext,
+            runtime: runtime.config,
+            thinkingMode,
+            extraBodyParams,
+            now: Date.now()
+          });
+          emitter = createAiPortTraceEmitter({
+            trace,
+            send,
+            now: Date.now
+          });
+        }
 
         await streamChatCompletion({
           baseUrl: runtime.config.baseUrl,
@@ -97,20 +120,46 @@ export default defineBackground(() => {
           callbacks: {
             onConnecting: () =>
               send({ type: "AI_STREAM_CONNECTING", requestId: message.requestId }),
-            onFirstToken: () =>
-              send({ type: "AI_STREAM_FIRST_TOKEN", requestId: message.requestId }),
+            onFirstToken: () => {
+              emitter?.onFirstToken();
+              send({ type: "AI_STREAM_FIRST_TOKEN", requestId: message.requestId });
+            },
             onDelta: (delta) =>
               send({ type: "AI_STREAM_CHUNK", requestId: message.requestId, delta }),
-            onDone: () => send({ type: "AI_STREAM_DONE", requestId: message.requestId }),
-            onError: (errorMessage) =>
-              send({ type: "AI_STREAM_ERROR", requestId: message.requestId, message: errorMessage })
+            onReasoningDelta: (delta) => {
+              emitter?.onReasoningDelta(delta);
+            },
+            onUsage: (usage) => {
+              emitter?.onUsage(usage);
+            },
+            onFinishReason: (reason) => {
+              emitter?.onFinishReason(reason);
+            },
+            onDone: () => {
+              const finalTrace = emitter?.onDone();
+              send({ type: "AI_STREAM_DONE", requestId: message.requestId, ...(finalTrace ? { trace: finalTrace } : {}) });
+            },
+            onError: (errorMessage) => {
+              const status = controller.signal.aborted ? "cancelled" : "error";
+              const finalTrace = emitter?.onError(errorMessage, status);
+              send({
+                type: "AI_STREAM_ERROR",
+                requestId: message.requestId,
+                message: errorMessage,
+                ...(finalTrace ? { trace: finalTrace } : {})
+              });
+            }
           }
         });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unexpected streaming error.";
+        const status = controller.signal.aborted ? "cancelled" : "error";
+        const finalTrace = emitter?.onError(errorMessage, status);
         send({
           type: "AI_STREAM_ERROR",
           requestId: message.requestId,
-          message: error instanceof Error ? error.message : "Unexpected streaming error."
+          message: errorMessage,
+          ...(finalTrace ? { trace: finalTrace } : {})
         });
       } finally {
         busy = false;
