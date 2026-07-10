@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getProvider, getProviderOptions } from "../../../src/lib/ai/providers";
 import type { LoadModelsResponse, TestConnectionResponse } from "../../../src/lib/messaging/types";
 import type { Settings } from "../../../src/lib/storage/types";
+import { DEV_COPY } from "../../../src/lib/devtools/copy";
 
 function EyeIcon() {
   return (
@@ -298,6 +299,25 @@ export function SettingsPanel(props: {
         </div>
         <p className="mt-2 text-xs text-stone-500 leading-relaxed">
           Kích hoạt tư duy sâu cho các model hỗ trợ. Thay đổi áp dụng cho mọi hội thoại.
+        </p>
+      </div>
+
+      {/* Developer Mode Card */}
+      <div className="rounded-2xl border border-stone-850 bg-surface p-4 transition-colors duration-300 hover:border-stone-800">
+        <label htmlFor="dev-mode-toggle" className="flex cursor-pointer items-start gap-3">
+          <input
+            id="dev-mode-toggle"
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-primary"
+            checked={props.settings.devMode}
+            onChange={(event) => commit(createNextSettings({ devMode: event.target.checked }))}
+          />
+          <span className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+            {DEV_COPY.settingsToggle}
+          </span>
+        </label>
+        <p className="mt-1 pl-7 text-xs leading-relaxed text-stone-500">
+          {DEV_COPY.settingsHelp}
         </p>
       </div>
 
