@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getThinkingParams, resolveProviderRuntimeConfig } from "../../src/lib/ai/runtime";
+import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../../src/lib/ai/runtime";
 import type { Settings } from "../../src/lib/storage/types";
 
 function settings(overrides: Partial<Settings>): Settings {
@@ -116,3 +116,29 @@ describe("getThinkingParams", () => {
     expect(getThinkingParams("opencode", "medium")).toEqual({ reasoning_effort: "medium" });
   });
 });
+
+describe("developer mode parameters", () => {
+  it("resolves devMode setting to config", () => {
+    expect(resolveProviderRuntimeConfig(settings({
+      providerId: "openai",
+      apiKeys: { openai: "sk" },
+      selectedModels: { openai: "gpt-5.4-mini" },
+      devMode: true
+    }))).toEqual({ ok: true, config: expect.objectContaining({ devMode: true }) });
+  });
+
+  it("returns stream_options for openai with devMode active", () => {
+    expect(getDevStreamParams("openai", true)).toEqual({
+      stream_options: { include_usage: true }
+    });
+  });
+
+  it("returns undefined for non-openai providers with devMode active", () => {
+    expect(getDevStreamParams("opencode", true)).toBeUndefined();
+  });
+
+  it("returns undefined when devMode is disabled", () => {
+    expect(getDevStreamParams("openai", false)).toBeUndefined();
+  });
+});
+
