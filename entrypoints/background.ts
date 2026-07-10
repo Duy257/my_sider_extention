@@ -207,12 +207,13 @@ export default defineBackground(() => {
               const readerReady = (msg: any) => {
                 if (msg.type === "READER_CONTENT_READY" && msg.requestId === message.requestId) {
                   chrome.runtime.onMessage.removeListener(readerReady);
+                  if (!response || !tab) return;
                   chrome.tabs.sendMessage(readerTab.id!, {
                     type: "LOAD_READER_CONTENT",
                     requestId: message.requestId,
                     title: response.title || tab.title || "",
                     url: response.url || tab.url || "",
-                    content: response.content || response.text || "",
+                    content: response.text || response.content || "",
                     excerpt: response.excerpt || "",
                   }).catch(() => undefined);
                 }

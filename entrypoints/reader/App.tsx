@@ -22,7 +22,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requestId = params.get('requestId') || crypto.randomUUID();
-    chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId });
+    chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId }).catch(() => {});
 
     function handleMessage(msg: any) {
       if (msg.type === "LOAD_READER_CONTENT") {
