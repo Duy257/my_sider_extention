@@ -4,10 +4,11 @@ import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
 import type { AiPortRequest, ExtensionMessage } from "../src/lib/messaging/types";
 import { getSettings } from "../src/lib/storage";
 import type { Settings } from "../src/lib/storage/types";
-import { createAiTrace, createAiPortTraceEmitter } from "../src/lib/devtools/background-trace";
+import { createAiTrace, createAiPortTraceEmitter, createToolTrace, completeToolTrace, failToolTrace } from "../src/lib/devtools/background-trace";
 
 let settingsCache: { settings: Settings; timestamp: number } | null = null;
 const SETTINGS_CACHE_TTL = 5_000; // 5 seconds
+const READER_HANDOFF_TIMEOUT_MS = 10_000;
 
 async function getCachedSettings(): Promise<Settings> {
   const now = Date.now();
@@ -205,79 +206,196 @@ export default defineBackground(() => {
     }
 
     if (message.type === "SELECTION_ACTION") {
-      // Forward to the active tab's content script (instead of side panel)
-      if (sender.tab?.id) {
-        chrome.tabs.sendMessage(sender.tab.id, {
-          type: "FORWARD_SELECTION_ACTION",
-          requestId: message.requestId,
-          prompt: message.prompt,
-          title: message.title,
-          actionPosition: { top: message.position?.top ?? 200, left: message.position?.left ?? 200 }
-        }).catch(() => undefined);
-      }
-      sendResponse({ ok: true });
+      const now = Date.now();
+      getSettings().then(async (settings) => {
+        const isDevModeActive = settings.devMode;
+        let trace = isDevModeActive ? createToolTrace({ requestId: message.requestId, tool: "selection-action", now }) : undefined;
+
+        if (sender.tab?.id) {
+          try {
+            if (trace) {
+              trace = completeToolTrace(trace, Date.now(), {
+                action: message.action,
+                textLength: message.text.length
+              });
+            }
+            await chrome.tabs.sendMessage(sender.tab.id, {
+              type: "FORWARD_SELECTION_ACTION",
+              requestId: message.requestId,
+              prompt: message.prompt,
+              title: message.title,
+              actionPosition: { top: message.position?.top ?? 200, left: message.position?.left ?? 200 },
+              ...(trace ? { toolTrace: trace } : {})
+            });
+            sendResponse({ ok: true, ...(trace ? { toolTrace: trace } : {}) });
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            if (trace) {
+              trace = failToolTrace(trace, Date.now(), errorMsg);
+            }
+            sendResponse({ ok: false, error: errorMsg, ...(trace ? { toolTrace: trace } : {}) });
+          }
+        } else {
+          const errorMsg = "No sender tab available.";
+          if (trace) {
+            trace = failToolTrace(trace, Date.now(), errorMsg);
+          }
+          sendResponse({ ok: false, error: errorMsg, ...(trace ? { toolTrace: trace } : {}) });
+        }
+      });
       return true;
     }
 
     if (message.type === "EXTRACT_ACTIVE_PAGE") {
-      getActiveTab()
-        .then(async (tab) => {
+      const now = Date.now();
+      getSettings().then(async (settings) => {
+        const isDevModeActive = settings.devMode;
+        let trace = isDevModeActive ? createToolTrace({ requestId: message.requestId, tool: "read-page", now }) : undefined;
+
+        try {
+          const tab = await getActiveTab();
           await injectContentAgent(tab.id!);
           let lastError: unknown;
           for (let attempt = 0; attempt < 5; attempt++) {
             try {
               const response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
-              sendResponse(response);
-              return;
+              if (response && !response.error) {
+                if (trace) {
+                  trace = completeToolTrace(trace, Date.now(), {
+                    extractor: response.method || "readability",
+                    contentChars: typeof response.text === "string" ? response.text.length : 0,
+                    warnings: response.warnings ? response.warnings.length : 0,
+                    truncated: response.text ? response.text.length >= 40000 : false
+                  });
+                }
+                sendResponse({ ...response, ...(trace ? { toolTrace: trace } : {}) });
+                return;
+              }
+              lastError = response?.error || "Unknown extraction error";
+              await new Promise((resolve) => setTimeout(resolve, 100));
             } catch (err) {
               lastError = err;
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
           }
-          sendResponse({ error: lastError instanceof Error ? lastError.message : "Content script not ready after retries." });
-        })
-        .catch((error) => sendResponse({ error: error instanceof Error ? error.message : "Page extraction failed." }));
+          const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+          if (trace) {
+            trace = failToolTrace(trace, Date.now(), errorMsg);
+          }
+          sendResponse({ error: errorMsg, ...(trace ? { toolTrace: trace } : {}) });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Page extraction failed.";
+          if (trace) {
+            trace = failToolTrace(trace, Date.now(), errorMsg);
+          }
+          sendResponse({ error: errorMsg, ...(trace ? { toolTrace: trace } : {}) });
+        }
+      });
       return true;
     }
 
     if (message.type === "OPEN_READING_COMPANION") {
-      getActiveTab()
-        .then(async (tab) => {
+      const now = Date.now();
+      getSettings().then(async (settings) => {
+        const isDevModeActive = settings.devMode;
+        let trace = isDevModeActive ? createToolTrace({ requestId: message.requestId, tool: "open-reader", now }) : undefined;
+        let readerReady: ((msg: any) => void) | undefined;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+        const cleanupHandoff = () => {
+          if (readerReady) {
+            chrome.runtime.onMessage.removeListener(readerReady);
+          }
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+        };
+
+        try {
+          const tab = await getActiveTab();
           await injectContentAgent(tab.id!);
           let lastError: unknown;
+          let extractionSuccess = false;
+          let response: any;
+
           for (let attempt = 0; attempt < 5; attempt++) {
             try {
-              const response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
-              if (response?.error) {
-                sendResponse({ error: response.error });
-                return;
+              response = await chrome.tabs.sendMessage(tab.id!, { type: "EXTRACT_PAGE_CONTENT" });
+              if (response && !response.error) {
+                extractionSuccess = true;
+                break;
               }
-              const readerTab = await chrome.tabs.create({ url: chrome.runtime.getURL(`/reader.html?requestId=${message.requestId}`) });
-              const readerReady = (msg: any) => {
-                if (msg.type === "READER_CONTENT_READY" && msg.requestId === message.requestId) {
-                  chrome.runtime.onMessage.removeListener(readerReady);
-                  if (!response || !tab) return;
-                  chrome.tabs.sendMessage(readerTab.id!, {
-                    type: "LOAD_READER_CONTENT",
-                    requestId: message.requestId,
-                    title: response.title || tab.title || "",
-                    url: response.url || tab.url || "",
-                    content: response.text || response.content || "",
-                    excerpt: response.excerpt || "",
-                  }).catch(() => undefined);
-                }
-              };
-              chrome.runtime.onMessage.addListener(readerReady);
-              sendResponse({ ok: true });
-              return;
+              lastError = response?.error || "Unknown extraction error";
+              await new Promise((resolve) => setTimeout(resolve, 100));
             } catch (err) {
               lastError = err;
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
           }
-          sendResponse({ error: lastError instanceof Error ? lastError.message : "Content script not ready." });
-        })
-        .catch((error) => sendResponse({ error: String(error) }));
+
+          if (!extractionSuccess) {
+            const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+            if (trace) {
+              trace = failToolTrace(trace, Date.now(), errorMsg);
+            }
+            sendResponse({ error: errorMsg, ...(trace ? { toolTrace: trace } : {}) });
+            return;
+          }
+
+          const readerTab = await chrome.tabs.create({ url: chrome.runtime.getURL(`/reader.html?requestId=${message.requestId}`) });
+          
+          if (trace) {
+            trace = completeToolTrace(trace, Date.now(), {
+              extractor: response.method || "readability",
+              contentChars: response.text ? response.text.length : 0,
+              warnings: response.warnings ? response.warnings.length : 0
+            });
+          }
+
+          // Set handoff timeout
+          timeoutHandle = setTimeout(() => {
+            cleanupHandoff();
+            if (trace) {
+              trace = failToolTrace(trace, Date.now(), "Reader handoff timeout.");
+            }
+            if (readerTab.id !== undefined) {
+              chrome.tabs.sendMessage(readerTab.id, {
+                type: "LOAD_READER_ERROR",
+                requestId: message.requestId,
+                error: "Handoff timeout. Reader tab did not respond in time.",
+                ...(trace ? { toolTrace: trace } : {})
+              }).catch(() => undefined);
+            }
+          }, READER_HANDOFF_TIMEOUT_MS);
+
+          readerReady = (msg: any) => {
+            if (msg.type === "READER_CONTENT_READY" && msg.requestId === message.requestId) {
+              cleanupHandoff();
+              if (readerTab.id !== undefined) {
+                chrome.tabs.sendMessage(readerTab.id, {
+                  type: "LOAD_READER_CONTENT",
+                  requestId: message.requestId,
+                  title: response.title || tab.title || "",
+                  url: response.url || tab.url || "",
+                  content: response.text || response.content || "",
+                  excerpt: response.excerpt || "",
+                  ...(trace ? { toolTrace: trace } : {})
+                }).catch(() => undefined);
+              }
+            }
+          };
+
+          chrome.runtime.onMessage.addListener(readerReady);
+          sendResponse({ ok: true });
+        } catch (error) {
+          cleanupHandoff();
+          const errorMsg = error instanceof Error ? error.message : "Open reader failed.";
+          if (trace) {
+            trace = failToolTrace(trace, Date.now(), errorMsg);
+          }
+          sendResponse({ error: errorMsg, ...(trace ? { toolTrace: trace } : {}) });
+        }
+      });
       return true;
     }
 
