@@ -72,4 +72,52 @@ describe("FloatingWindow", () => {
     expect(await screen.findByText("Answer text")).toBeInTheDocument();
     expect(screen.getByText(/TOOL \/ selection-action/i)).toBeInTheDocument();
   });
+
+  it("renders DebugDetails for AI stream trace when stream starts/done in developer mode", async () => {
+    const toolTrace = {
+      requestId: "tool-req-123",
+      tool: "selection-action" as const,
+      status: "success" as const,
+      startedAt: 1000,
+      finishedAt: 1200,
+      metadata: {
+        action: "summarize",
+        textLength: 50
+      }
+    };
+    render(React.createElement(FloatingWindow, { ...defaultProps, toolTrace }));
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const port = portEntries[0];
+    const requestId = (chrome.runtime.connect as any).mock.results[0].value.postMessage.mock.calls[0][0].requestId;
+
+    const mockAiTrace = {
+      requestId,
+      surface: "floating-window" as const,
+      feature: "chat" as const,
+      status: "success" as const,
+      providerId: "openai",
+      model: "gpt-4o",
+      requestedThinkingMode: "off" as const,
+      effectiveRequestParams: {},
+      startedAt: 1000,
+      finishedAt: 1500,
+      thinking: { state: "not-returned" as const, content: "" },
+      usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 }
+    };
+
+    act(() => {
+      port.onMessage.trigger({ type: "AI_STREAM_DEBUG_START", requestId, trace: mockAiTrace });
+      port.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Answer content" });
+      port.onMessage.trigger({ type: "AI_STREAM_DONE", requestId, trace: mockAiTrace });
+    });
+
+    expect(await screen.findByText("Answer content")).toBeInTheDocument();
+    expect(screen.getByText(/DEV/)).toBeInTheDocument();
+    expect(screen.getByText(/15 tok/i)).toBeInTheDocument();
+  });
 });

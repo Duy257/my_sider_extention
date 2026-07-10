@@ -104,10 +104,25 @@ export function mountFloatingWindow(options: MountOptions) {
     .cursor-pointer { cursor: pointer; }
     .uppercase { text-transform: uppercase; }
     .mt-3.5 { margin-top: 14px; }
+    .mt-2 { margin-top: 8px; }
     .mt-1 { margin-top: 4px; }
     .mb-1.5 { margin-bottom: 6px; }
+    .space-y-3.5 > * + * { margin-top: 14px; }
     .space-y-2.5 > * + * { margin-top: 10px; }
     .space-y-0.5 > * + * { margin-top: 2px; }
+    .border-t { border-top-style: solid; border-top-width: 1px; }
+    .max-h-60 { max-height: 240px; }
+    .overflow-y-auto { overflow-y: auto; }
+    .whitespace-pre-wrap { white-space: pre-wrap; }
+    .rounded { border-radius: 4px; }
+    .bg-stone-900\\/60 { background-color: rgba(28, 25, 23, 0.6); }
+    .leading-relaxed { line-height: 1.625; }
+    .hover\\:text-violet-300:hover { color: #c084fc; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+    .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     .break-all { word-break: break-all; }
   `;
   shadow.appendChild(style);
