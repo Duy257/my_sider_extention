@@ -9,13 +9,7 @@ describe("Reader App", () => {
   });
 
   it("renders loading state initially and sends READER_CONTENT_READY", () => {
-    // Set search query param for requestId
-    const originalLocation = window.location;
-    delete (window as any).location;
-    window.location = {
-      ...originalLocation,
-      search: "?requestId=req-123"
-    };
+    const spy = vi.spyOn(URLSearchParams.prototype, "get").mockReturnValue("req-123");
 
     render(<App />);
     expect(screen.getByText("Đang tải nội dung...")).toBeInTheDocument();
@@ -26,16 +20,11 @@ describe("Reader App", () => {
       requestId: "req-123"
     });
 
-    window.location = originalLocation;
+    spy.mockRestore();
   });
 
   it("renders content and ToolTraceCard when receiving LOAD_READER_CONTENT", async () => {
-    const originalLocation = window.location;
-    delete (window as any).location;
-    window.location = {
-      ...originalLocation,
-      search: "?requestId=req-123"
-    };
+    const spy = vi.spyOn(URLSearchParams.prototype, "get").mockReturnValue("req-123");
 
     render(<App />);
 
@@ -76,16 +65,11 @@ describe("Reader App", () => {
     // Tool trace card should be rendered on the companion body
     expect(screen.getByText(/TOOL \/ read-page/i)).toBeInTheDocument();
 
-    window.location = originalLocation;
+    spy.mockRestore();
   });
 
   it("renders error state and ToolTraceCard when receiving LOAD_READER_ERROR", async () => {
-    const originalLocation = window.location;
-    delete (window as any).location;
-    window.location = {
-      ...originalLocation,
-      search: "?requestId=req-123"
-    };
+    const spy = vi.spyOn(URLSearchParams.prototype, "get").mockReturnValue("req-123");
 
     render(<App />);
 
@@ -98,7 +82,7 @@ describe("Reader App", () => {
       status: "error" as const,
       startedAt: 1000,
       finishedAt: 1050,
-      error: "Extraction failed completely.",
+      error: "Failed to extract page context.",
       metadata: {}
     };
 
@@ -118,6 +102,6 @@ describe("Reader App", () => {
     // Tool trace card should render in error screen
     expect(screen.getByText(/TOOL \/ read-page/i)).toBeInTheDocument();
 
-    window.location = originalLocation;
+    spy.mockRestore();
   });
 });
