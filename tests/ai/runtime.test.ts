@@ -115,6 +115,19 @@ describe("getThinkingParams", () => {
   it("returns reasoning_effort for opencode medium", () => {
     expect(getThinkingParams("opencode", "medium")).toEqual({ reasoning_effort: "medium" });
   });
+
+  it("returns thinking object for deepseek model", () => {
+    expect(getThinkingParams("opencode", "medium", "deepseek-v4-pro")).toEqual({
+      thinking: { type: "enabled" }
+    });
+    expect(getThinkingParams("opencode", "off", "deepseek-v4-pro")).toEqual({
+      thinking: { type: "disabled" }
+    });
+    expect(getThinkingParams("opencode", "max", "deepseek-v4-pro")).toEqual({
+      thinking: { type: "enabled" },
+      reasoning_effort: "max"
+    });
+  });
 });
 
 describe("developer mode parameters", () => {

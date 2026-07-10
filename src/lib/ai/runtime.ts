@@ -22,8 +22,35 @@ const THINKING_PARAM_MAP: Record<string, Record<string, Record<string, unknown> 
 
 export function getThinkingParams(
   providerId: string,
-  mode: "off" | "low" | "medium" | "high" | "max"
+  mode: "off" | "low" | "medium" | "high" | "max",
+  model?: string
 ): Record<string, unknown> | undefined {
+  const isDeepSeek = model?.toLowerCase().includes("deepseek");
+
+  if (isDeepSeek) {
+    if (mode === "off") {
+      return {
+        thinking: {
+          type: "disabled"
+        }
+      };
+    }
+
+    const baseParams: Record<string, unknown> = {
+      thinking: {
+        type: "enabled"
+      }
+    };
+
+    if (mode === "high") {
+      baseParams.reasoning_effort = "high";
+    } else if (mode === "max") {
+      baseParams.reasoning_effort = "max";
+    }
+
+    return baseParams;
+  }
+
   if (mode === "off") return undefined;
   const params = THINKING_PARAM_MAP[providerId]?.[mode];
   if (!params && process.env.NODE_ENV !== "production") {

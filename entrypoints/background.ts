@@ -89,7 +89,7 @@ export default defineBackground(() => {
         }
 
         const thinkingMode = message.thinkingMode ?? runtime.config.thinkingMode;
-        const thinkingParams = getThinkingParams(runtime.config.providerId, thinkingMode);
+        const thinkingParams = getThinkingParams(runtime.config.providerId, thinkingMode, runtime.config.model);
         const devStreamParams = getDevStreamParams(runtime.config.providerId, runtime.config.devMode);
         const extraBodyParams = thinkingParams || devStreamParams
           ? { ...(thinkingParams ?? {}), ...(devStreamParams ?? {}) }
