@@ -276,6 +276,31 @@ export function SettingsPanel(props: {
         ) : null}
       </div>
 
+      {/* Thinking Mode Card */}
+      <div className="rounded-2xl bg-surface border border-stone-850 p-4 shadow-sm hover:border-stone-800 transition-all duration-300">
+        <label htmlFor="thinking-select" className="block text-xs font-semibold text-stone-400 uppercase tracking-wider">
+          🧠 Tư duy (Thinking)
+        </label>
+        <div className="relative mt-2">
+          <select
+            id="thinking-select"
+            className="w-full appearance-none rounded-xl border border-stone-850 bg-warm-bg px-3.5 py-3 text-[13.5px] font-medium text-stone-100 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-colors shadow-inner"
+            value={props.settings.thinkingMode ?? "off"}
+            onChange={(event) => commit(createNextSettings({ thinkingMode: event.target.value as Settings["thinkingMode"] }))}
+          >
+            <option value="off">Tắt (Off)</option>
+            <option value="low">Thấp (Low)</option>
+            <option value="medium">Vừa (Medium)</option>
+            <option value="high">Cao (High)</option>
+            <option value="max">Tối đa (Max)</option>
+          </select>
+          <ChevronIcon />
+        </div>
+        <p className="mt-2 text-xs text-stone-500 leading-relaxed">
+          Kích hoạt tư duy sâu cho các model hỗ trợ. Thay đổi áp dụng cho mọi hội thoại.
+        </p>
+      </div>
+
       {/* Connection Test Card */}
       <div className="rounded-2xl bg-surface border border-stone-850 p-4 shadow-sm hover:border-stone-800 transition-all duration-300">
         <button
