@@ -13,7 +13,8 @@
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
     "test": "vitest",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "bump": "sh scripts/bump-version.sh"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
