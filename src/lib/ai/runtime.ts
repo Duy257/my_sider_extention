@@ -24,7 +24,12 @@ export function getThinkingParams(
   providerId: string,
   mode: "off" | "low" | "medium" | "high" | "max"
 ): Record<string, unknown> | undefined {
-  return THINKING_PARAM_MAP[providerId]?.[mode];
+  if (mode === "off") return undefined;
+  const params = THINKING_PARAM_MAP[providerId]?.[mode];
+  if (!params && process.env.NODE_ENV !== "production") {
+    console.warn(`[AI] Provider "${providerId}" does not support thinking mode.`);
+  }
+  return params;
 }
 
 // Cấu hình đầy đủ của một provider ở runtime, đã được resolve từ settings

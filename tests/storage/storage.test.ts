@@ -32,8 +32,8 @@ describe("storage defaults", () => {
     expect(migrated.data).toEqual({ provider: "openai" });
   });
 
-  it("uses schema version 3", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(3);
+  it("uses schema version 4", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(4);
   });
 
   it("migrates v2 openai settings", () => {
@@ -49,7 +49,7 @@ describe("storage defaults", () => {
       }
     }, createDefaultSettings("fallback"));
 
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.data).toEqual({
       providerId: "openai",
       apiKeys: { openai: "sk-old" },

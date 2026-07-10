@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchModels, streamChatCompletion, testConnection } from "../../src/lib/ai/client";
+import { fetchCompletion, fetchModels, streamChatCompletion, testConnection } from "../../src/lib/ai/client";
 
 function createMockSSE(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -140,6 +140,29 @@ describe("streamChatCompletion", () => {
     });
 
     expect(onError).toHaveBeenCalledWith("Network error. Check your internet connection.");
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("fetchCompletion", () => {
+  it("merges extraBodyParams into request body", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: "ok" } }] })
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchCompletion({
+      baseUrl: "https://api.openai.com/v1/chat/completions",
+      apiKey: "sk-test",
+      model: "o3-mini",
+      messages: [{ role: "user", content: "Hi" }],
+      extraBodyParams: { reasoning_effort: "high" }
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.reasoning_effort).toBe("high");
+
     vi.unstubAllGlobals();
   });
 });

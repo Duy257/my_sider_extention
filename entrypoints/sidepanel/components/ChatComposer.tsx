@@ -33,6 +33,11 @@ export function ChatComposer(props: {
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Sync thinkingMode when defaultThinkingMode prop changes
+  useEffect(() => {
+    setThinkingMode(props.defaultThinkingMode ?? "off");
+  }, [props.defaultThinkingMode]);
+
   // Auto-resize height as typing happens
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -42,13 +47,17 @@ export function ChatComposer(props: {
     }
   }, [value]);
 
+  function sendMessage(text: string) {
+    props.onSend(text, thinkingMode);
+    setValue("");
+    setThinkingMode(props.defaultThinkingMode ?? "off");
+  }
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const text = value.trim();
     if (!text || props.disabled) return;
-    props.onSend(text, thinkingMode);
-    setValue("");
-    setThinkingMode(props.defaultThinkingMode ?? "off");
+    sendMessage(text);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -56,9 +65,7 @@ export function ChatComposer(props: {
       event.preventDefault();
       const text = value.trim();
       if (!text || props.disabled) return;
-      props.onSend(text, thinkingMode);
-      setValue("");
-      setThinkingMode(props.defaultThinkingMode ?? "off");
+      sendMessage(text);
     }
   };
 
@@ -84,7 +91,7 @@ export function ChatComposer(props: {
             <select
               className="appearance-none rounded-xl border border-stone-850 bg-surface/90 px-2.5 py-2.5 text-[11px] font-medium text-stone-400 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-colors cursor-pointer min-w-[90px]"
               value={thinkingMode}
-              onChange={(e) => setThinkingMode(e.target.value as any)}
+              onChange={(e) => setThinkingMode(e.target.value as "off" | "low" | "medium" | "high" | "max")}
               disabled={props.disabled}
               title="Mức tư duy"
             >

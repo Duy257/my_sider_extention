@@ -1,7 +1,7 @@
 import { getDefaultProviderId, getProvider } from "../ai/providers";
 import type { Settings, StorageEnvelope } from "./types";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" ? value as Record<string, unknown> : {};
