@@ -20,13 +20,17 @@ function SendSpinner() {
 
 export function ChatComposer(props: {
   disabled: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string, thinkingMode?: "off" | "low" | "medium" | "high" | "max") => void;
   showMissingKeyBanner?: boolean;
   missingType?: "key" | "model";
   providerLabel?: string;
   sending?: boolean;
+  defaultThinkingMode?: "off" | "low" | "medium" | "high" | "max";
 }) {
   const [value, setValue] = useState("");
+  const [thinkingMode, setThinkingMode] = useState<"off" | "low" | "medium" | "high" | "max">(
+    props.defaultThinkingMode ?? "off"
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize height as typing happens
@@ -42,8 +46,9 @@ export function ChatComposer(props: {
     event.preventDefault();
     const text = value.trim();
     if (!text || props.disabled) return;
-    props.onSend(text);
+    props.onSend(text, thinkingMode);
     setValue("");
+    setThinkingMode(props.defaultThinkingMode ?? "off");
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -51,8 +56,9 @@ export function ChatComposer(props: {
       event.preventDefault();
       const text = value.trim();
       if (!text || props.disabled) return;
-      props.onSend(text);
+      props.onSend(text, thinkingMode);
       setValue("");
+      setThinkingMode(props.defaultThinkingMode ?? "off");
     }
   };
 
@@ -73,25 +79,42 @@ export function ChatComposer(props: {
       )}
 
       <form className="relative flex items-end w-full group/form" onSubmit={handleSubmit}>
-        <textarea
-          ref={textareaRef}
-          className="min-h-[44px] max-h-32 w-full resize-none rounded-xl border border-stone-800 bg-surface/90 py-2.5 pl-3.5 pr-11 text-[13.5px] leading-relaxed text-stone-100 placeholder-stone-500 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-all duration-300 shadow-inner"
-          value={value}
-          disabled={props.disabled}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Hỏi về công việc của bạn..."
-          rows={1}
-          aria-label="Hỏi về công việc của bạn"
-        />
-        <button
-          className={`absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-dark transition-all duration-300 shadow-md disabled:bg-stone-800 disabled:text-stone-500 disabled:opacity-40 disabled:shadow-none group-hover/form:shadow-primary/10 group/btn cursor-pointer`}
-          type="submit"
-          disabled={props.disabled || !value.trim()}
-          title="Gửi"
-        >
-          {props.sending ? <SendSpinner /> : <SendArrow />}
-        </button>
+        <div className="flex items-end gap-2 w-full">
+          <div className="relative flex-shrink-0">
+            <select
+              className="appearance-none rounded-xl border border-stone-850 bg-surface/90 px-2.5 py-2.5 text-[11px] font-medium text-stone-400 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-colors cursor-pointer min-w-[90px]"
+              value={thinkingMode}
+              onChange={(e) => setThinkingMode(e.target.value as any)}
+              disabled={props.disabled}
+              title="Mức tư duy"
+            >
+              <option value="off">🧠 Tắt</option>
+              <option value="low">Thấp</option>
+              <option value="medium">Vừa</option>
+              <option value="high">Cao</option>
+              <option value="max">Tối đa</option>
+            </select>
+          </div>
+          <textarea
+            ref={textareaRef}
+            className="min-h-[44px] max-h-32 w-full resize-none rounded-xl border border-stone-800 bg-surface/90 py-2.5 pl-3.5 pr-11 text-[13.5px] leading-relaxed text-stone-100 placeholder-stone-500 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-all duration-300 shadow-inner"
+            value={value}
+            disabled={props.disabled}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Hỏi về công việc của bạn..."
+            rows={1}
+            aria-label="Hỏi về công việc của bạn"
+          />
+          <button
+            className={`absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-dark transition-all duration-300 shadow-md disabled:bg-stone-800 disabled:text-stone-500 disabled:opacity-40 disabled:shadow-none group-hover/form:shadow-primary/10 group/btn cursor-pointer`}
+            type="submit"
+            disabled={props.disabled || !value.trim()}
+            title="Gửi"
+          >
+            {props.sending ? <SendSpinner /> : <SendArrow />}
+          </button>
+        </div>
       </form>
     </div>
   );

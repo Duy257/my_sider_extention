@@ -24,7 +24,7 @@ test("calls onSend with textarea content on submit", async () => {
   const button = screen.getByTitle("Gửi");
   await user.click(button);
 
-  expect(onSend).toHaveBeenCalledWith("Hello");
+  expect(onSend).toHaveBeenCalledWith("Hello", "off");
 });
 
 test("missing key banner visible when showMissingKeyBanner is true", () => {

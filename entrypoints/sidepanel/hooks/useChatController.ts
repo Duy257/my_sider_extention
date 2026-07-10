@@ -22,7 +22,7 @@ export type UseChatControllerResult = {
   streaming: boolean;
   streamingPhase: StreamingPhase;
   error: string;
-  sendPrompt: (text: string) => void;
+  sendPrompt: (text: string, thinkingMode?: "off" | "low" | "medium" | "high" | "max") => void;
   cancelStream: () => void;
   clearChat: () => void;
   dismissError: () => void;
@@ -75,7 +75,7 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     setMessages([]);
   }
 
-  function sendPrompt(text: string) {
+  function sendPrompt(text: string, thinkingMode?: "off" | "low" | "medium" | "high" | "max") {
     const trimmed = text.trim();
     if (!trimmed || !canSend || streamingRef.current) return;
 
@@ -144,7 +144,8 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     port.postMessage({
       type: "AI_CHAT_REQUEST",
       requestId,
-      messages: providerMessages
+      messages: providerMessages,
+      ...(thinkingMode ? { thinkingMode } : {})
     });
   }
 
