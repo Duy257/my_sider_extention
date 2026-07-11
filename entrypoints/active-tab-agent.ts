@@ -75,7 +75,13 @@ export default defineUnlistedScript(() => {
   }
 
   function showToolbar() {
-    removeToolbar();
+    // Purge any existing toolbar or indicator elements immediately
+    document.querySelectorAll('[data-personal-ai-toolbar]').forEach(el => el.remove());
+    if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
+    hideTimeoutId = null;
+    toolbar = null;
+    tooLongIndicator = null;
+
     const text = currentSelectionText();
     if (!text) return;
 
@@ -97,8 +103,27 @@ export default defineUnlistedScript(() => {
     document.body.appendChild(toolbar);
   }
 
-  // Single source of truth: selectionchange drives all toolbar show/hide
-  document.addEventListener("selectionchange", () => {
+  function isContextInvalidated(): boolean {
+    if (!chrome.runtime?.id) {
+      cleanupOrphanedAgent();
+      return true;
+    }
+    return false;
+  }
+
+  function cleanupOrphanedAgent() {
+    if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
+    document.removeEventListener("selectionchange", handleSelectionChange);
+    document.removeEventListener("scroll", handleScroll);
+    document.removeEventListener("mousedown", handleMousedown);
+    document.removeEventListener("keydown", handleKeydown);
+    window.removeEventListener("resize", handleResize);
+    document.querySelectorAll('[data-personal-ai-toolbar]').forEach(el => el.remove());
+  }
+
+  function handleSelectionChange() {
+    if (isContextInvalidated()) return;
+
     if (ignoreNextSelectionChange) {
       ignoreNextSelectionChange = false;
       return;
@@ -110,28 +135,47 @@ export default defineUnlistedScript(() => {
       hideTimeoutId = null;
       showToolbar();
     }, 150);
-  });
+  }
 
-  // Hide toolbar on scroll
-  document.addEventListener("scroll", removeToolbar, { passive: true });
+  function handleScroll() {
+    if (isContextInvalidated()) return;
+    removeToolbar();
+  }
 
-  // Hide toolbar + clear selection on click outside toolbar
-  document.addEventListener("mousedown", (event) => {
+  function handleMousedown(event: MouseEvent) {
+    if (isContextInvalidated()) return;
     if (toolbar && !toolbar.contains(event.target as Node)) {
       removeToolbar();
       window.getSelection()?.removeAllRanges();
     }
-  });
+  }
 
-  // Escape key dismisses toolbar
-  document.addEventListener("keydown", (event) => {
+  function handleKeydown(event: KeyboardEvent) {
+    if (isContextInvalidated()) return;
     if (event.key === "Escape" && toolbar) {
       removeToolbar();
     }
-  });
+  }
+
+  function handleResize() {
+    if (isContextInvalidated()) return;
+    removeToolbar();
+  }
+
+  // Single source of truth: selectionchange drives all toolbar show/hide
+  document.addEventListener("selectionchange", handleSelectionChange);
+
+  // Hide toolbar on scroll
+  document.addEventListener("scroll", handleScroll, { passive: true });
+
+  // Hide toolbar + clear selection on click outside toolbar
+  document.addEventListener("mousedown", handleMousedown);
+
+  // Escape key dismisses toolbar
+  document.addEventListener("keydown", handleKeydown);
 
   // Re-position or dismiss on resize
-  window.addEventListener("resize", removeToolbar);
+  window.addEventListener("resize", handleResize);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "FORWARD_SELECTION_ACTION") {

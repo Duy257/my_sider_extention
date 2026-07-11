@@ -27,6 +27,7 @@ const portEntries: {
 
 globalThis.chrome = {
   runtime: {
+    id: "test-extension-id",
     connect: vi.fn(() => {
       const onMessage = createListenerContainer();
       const onDisconnect = createListenerContainer();
