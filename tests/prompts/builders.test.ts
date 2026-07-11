@@ -28,6 +28,26 @@ describe("prompt builders", () => {
     expect(prompt).toContain("Hello team");
   });
 
+  it("builds a detailed vocabulary explanation selection prompt in Vietnamese", () => {
+    const prompt = buildSelectionPrompt("explain_vocabulary", "resilient strategy");
+
+    expect(prompt).toContain("từ vựng");
+    expect(prompt).toContain("loại từ");
+    expect(prompt).toContain("phát âm");
+    expect(prompt).toContain("collocation");
+    expect(prompt).toContain("resilient strategy");
+  });
+
+  it("builds an English grammar explanation selection prompt in Vietnamese", () => {
+    const prompt = buildSelectionPrompt("explain_grammar", "She has been working remotely since 2020.");
+
+    expect(prompt).toContain("ngữ pháp tiếng Anh");
+    expect(prompt).toContain("cấu trúc");
+    expect(prompt).toContain("thì");
+    expect(prompt).toContain("mệnh đề");
+    expect(prompt).toContain("She has been working remotely since 2020.");
+  });
+
   it("builds chat messages with a Vietnamese system instruction", () => {
     const messages = buildUserChatMessages("Giải thích điều này");
 
