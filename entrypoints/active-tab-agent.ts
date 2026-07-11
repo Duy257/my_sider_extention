@@ -46,17 +46,23 @@ export default defineUnlistedScript(() => {
     const toolbarHeight = 42;
     const arrowHeight = 5;
     const gap = 6;
+    const halfToolbarWidth = 152;
+    const minLeft = 4;
+    const maxLeft = Math.max(4, window.innerWidth - 304 - 4);
+
+    const rawLeft = rect.left + rect.width / 2 - halfToolbarWidth;
+    const left = Math.min(maxLeft, Math.max(minLeft, rawLeft));
 
     if (rect.top >= toolbarHeight + gap) {
       return {
         top: Math.max(4, rect.top - toolbarHeight - gap - arrowHeight),
-        left: Math.max(4, rect.left + rect.width / 2 - 140),
+        left,
       };
     }
 
     return {
       top: Math.max(4, rect.bottom + gap + arrowHeight),
-      left: Math.max(4, rect.left + rect.width / 2 - 140),
+      left,
     };
   }
 
