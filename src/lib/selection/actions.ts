@@ -25,5 +25,15 @@ export const SELECTION_ACTIONS: Array<{ action: SelectionAction; label: string; 
     action: "action_list",
     label: "Bullet/Action list",
     iconSvg: `<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>`
+  },
+  {
+    action: "explain_vocabulary",
+    label: "Giải thích từ vựng",
+    iconSvg: `<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9"/><path d="M4 12h9"/><path d="M4 19h6"/><path d="M16 5h4"/><path d="M18 3v4"/><path d="m15 14 2 2 4-5"/><path d="M16 20h5"/></svg>`
+  },
+  {
+    action: "explain_grammar",
+    label: "Giải thích ngữ pháp",
+    iconSvg: `<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h8"/><path d="M4 18h10"/><path d="M17 10v8"/><path d="m14 15 3 3 3-3"/><path d="M16 6l1-2 1 2 2 1-2 1-1 2-1-2-2-1Z"/></svg>`
   }
 ];

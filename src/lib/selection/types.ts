@@ -3,4 +3,6 @@ export type SelectionAction =
   | "translate_vi"
   | "rewrite_professional"
   | "summarize"
-  | "action_list";
+  | "action_list"
+  | "explain_vocabulary"
+  | "explain_grammar";
