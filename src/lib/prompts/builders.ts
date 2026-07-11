@@ -85,6 +85,40 @@ Trả lời theo cấu trúc:
 
 Mỗi việc cần bắt đầu bằng động từ hành động.
 `.trim(),
+
+  explain_vocabulary: `
+Hãy giải thích từ vựng trong đoạn được chọn như một trợ lý học ngoại ngữ chi tiết.
+
+Trả lời bằng tiếng Việt theo cấu trúc:
+1. Nghĩa trong ngữ cảnh
+2. Loại từ
+3. Phát âm nếu có thể xác định tự tin
+4. Sắc thái nghĩa và cách dùng
+5. Cụm từ liên quan hoặc collocation
+6. Ví dụ ngắn
+7. Lỗi dùng từ phổ biến nếu có
+
+Yêu cầu:
+- Bám sát đoạn văn bản được chọn.
+- Nếu từ/cụm từ mơ hồ hoặc thiếu ngữ cảnh, hãy nói rõ điểm chưa chắc chắn.
+- Không bịa nguồn gốc từ, phát âm, hoặc nghĩa không có cơ sở.
+`.trim(),
+
+  explain_grammar: `
+Hãy giải thích ngữ pháp tiếng Anh trong đoạn được chọn.
+
+Trả lời bằng tiếng Việt theo cấu trúc:
+1. Cấu trúc tổng thể của câu hoặc cụm từ
+2. Thì, mệnh đề, cụm danh từ, cụm động từ, giới từ, liên từ hoặc thành phần bổ nghĩa nếu có
+3. Vai trò của từng phần quan trọng
+4. Điểm dễ nhầm hoặc lỗi người học thường gặp
+5. Cách diễn đạt đơn giản hơn nếu hữu ích
+
+Yêu cầu:
+- Ưu tiên phân tích ngữ pháp tiếng Anh.
+- Nếu đoạn được chọn không rõ là tiếng Anh, hãy nói rõ rằng phân tích ngữ pháp tiếng Anh có thể không áp dụng.
+- Không ép phân tích khi văn bản quá ngắn hoặc thiếu cấu trúc.
+`.trim(),
 };
 
 export function buildUserChatMessages(input: string, history: ChatHistoryMessage[] = []): AiMessage[] {

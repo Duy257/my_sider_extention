@@ -32,7 +32,7 @@ describe("prompt builders", () => {
     const prompt = buildSelectionPrompt("explain_vocabulary", "resilient strategy");
 
     expect(prompt).toContain("từ vựng");
-    expect(prompt).toContain("loại từ");
+    expect(prompt).toContain("Loại từ");
     expect(prompt).toContain("phát âm");
     expect(prompt).toContain("collocation");
     expect(prompt).toContain("resilient strategy");
@@ -42,8 +42,8 @@ describe("prompt builders", () => {
     const prompt = buildSelectionPrompt("explain_grammar", "She has been working remotely since 2020.");
 
     expect(prompt).toContain("ngữ pháp tiếng Anh");
-    expect(prompt).toContain("cấu trúc");
-    expect(prompt).toContain("thì");
+    expect(prompt).toContain("Cấu trúc");
+    expect(prompt).toContain("Thì");
     expect(prompt).toContain("mệnh đề");
     expect(prompt).toContain("She has been working remotely since 2020.");
   });
