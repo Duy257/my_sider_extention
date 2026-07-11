@@ -6,7 +6,9 @@ const ACTION_LABELS = [
   "Dịch sang tiếng Việt",
   "Viết lại chuyên nghiệp",
   "Tóm tắt",
-  "Bullet/Action list"
+  "Bullet/Action list",
+  "Giải thích từ vựng",
+  "Giải thích ngữ pháp"
 ];
 
 describe("selection toolbar", () => {
@@ -23,11 +25,11 @@ describe("selection toolbar", () => {
     expect(isSelectionTooLong("a".repeat(20002))).toBe(true);
   });
 
-  it("renders five icon-only action buttons with Vietnamese accessible labels", () => {
+  it("renders seven icon-only action buttons with Vietnamese accessible labels", () => {
     const toolbar = renderSelectionToolbar({ top: 10, left: 20 }, () => undefined);
     const buttons = Array.from(toolbar.querySelectorAll("button"));
 
-    expect(buttons).toHaveLength(5);
+    expect(buttons).toHaveLength(7);
     expect(toolbar.textContent).toBe("");
 
     buttons.forEach((button, index) => {
@@ -46,10 +48,15 @@ describe("selection toolbar", () => {
     const actions: string[] = [];
     const toolbar = renderSelectionToolbar({ top: 10, left: 20 }, (action) => actions.push(action));
     const buttons = toolbar.querySelectorAll("button");
+
     buttons[0].click();
     expect(actions).toEqual(["explain"]);
-    buttons[4].click();
-    expect(actions).toEqual(["explain", "action_list"]);
+
+    buttons[5].click();
+    expect(actions).toEqual(["explain", "explain_vocabulary"]);
+
+    buttons[6].click();
+    expect(actions).toEqual(["explain", "explain_vocabulary", "explain_grammar"]);
   });
 
   it("sets dataset.personalAiToolbar attribute", () => {
