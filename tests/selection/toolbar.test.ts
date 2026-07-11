@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../../src/lib/selection/toolbar";
 
+const ACTION_LABELS = [
+  "Giải thích",
+  "Dịch sang tiếng Việt",
+  "Viết lại chuyên nghiệp",
+  "Tóm tắt",
+  "Bullet/Action list"
+];
+
 describe("selection toolbar", () => {
-  it("accepts selections between 20 and 20000 characters", () => {
-    expect(isSelectionLengthAllowed("a".repeat(19))).toBe(false);
-    expect(isSelectionLengthAllowed("a".repeat(20))).toBe(true);
+  it("accepts selections between 3 and 20000 characters", () => {
+    expect(isSelectionLengthAllowed("a".repeat(2))).toBe(false);
+    expect(isSelectionLengthAllowed("a".repeat(3))).toBe(true);
     expect(isSelectionLengthAllowed("a".repeat(20000))).toBe(true);
     expect(isSelectionLengthAllowed("a".repeat(20001))).toBe(false);
   });
@@ -15,15 +23,23 @@ describe("selection toolbar", () => {
     expect(isSelectionTooLong("a".repeat(20002))).toBe(true);
   });
 
-  it("renders five action buttons with Vietnamese labels", () => {
+  it("renders five icon-only action buttons with Vietnamese accessible labels", () => {
     const toolbar = renderSelectionToolbar({ top: 10, left: 20 }, () => undefined);
+    const buttons = Array.from(toolbar.querySelectorAll("button"));
 
-    expect(toolbar.querySelectorAll("button")).toHaveLength(5);
-    expect(toolbar.textContent).toContain("Giải thích");
-    expect(toolbar.textContent).toContain("Dịch sang tiếng Việt");
-    expect(toolbar.textContent).toContain("Viết lại chuyên nghiệp");
-    expect(toolbar.textContent).toContain("Tóm tắt");
-    expect(toolbar.textContent).toContain("Bullet/Action list");
+    expect(buttons).toHaveLength(5);
+    expect(toolbar.textContent).toBe("");
+
+    buttons.forEach((button, index) => {
+      expect(button.title).toBe(ACTION_LABELS[index]);
+      expect(button.getAttribute("aria-label")).toBe(ACTION_LABELS[index]);
+      expect(button.textContent).toBe("");
+
+      const svg = button.querySelector("svg");
+      expect(svg).not.toBeNull();
+      expect(svg?.getAttribute("aria-hidden")).toBe("true");
+      expect(svg?.getAttribute("focusable")).toBe("false");
+    });
   });
 
   it("button click invokes onAction callback with correct action", () => {
