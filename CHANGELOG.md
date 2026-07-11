@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-11
+
+### Added
+- Two new selection toolbar actions: "Giải thích từ vựng" (Vocabulary Explanation) and "Giải thích ngữ pháp" (Grammar Explanation) to support detailed language learning workflows.
+- Bilingual prompts in Vietnamese with detailed instructions and safety guardrails for vocabulary and English grammar analysis.
+- Expanded selection toolbar to support 7 compact icon-only buttons.
+
+### Fixed
+- Centered selection toolbar by updating horizontal positioning offset to 152px to match the wider 7-button layout.
+- Implemented right-edge screen boundary check to prevent the toolbar from overflowing the window width.
+- Resolved toolbar button click issues where clicking a button caused the selection to clear before triggering the action; fixed by invoking `event.preventDefault()` and `event.stopPropagation()` on `mousedown`, and adding `pointer-events: none` to button SVG icons.
+
 ## [0.2.0] - 2026-07-10
 
 ### Added
