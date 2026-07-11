@@ -109,6 +109,7 @@ export function renderSelectionToolbar(
       svg.style.height = "16px";
       svg.style.display = "block";
       svg.style.flexShrink = "0";
+      svg.style.pointerEvents = "none";
     }
 
     button.addEventListener("mouseenter", () => {
@@ -117,7 +118,9 @@ export function renderSelectionToolbar(
     button.addEventListener("mouseleave", () => {
       button.style.background = "transparent";
     });
-    button.addEventListener("mousedown", () => {
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       button.style.transform = "scale(0.96)";
     });
     button.addEventListener("mouseup", () => {
