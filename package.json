@@ -2,7 +2,7 @@
   "name": "personal-ai-sidebar",
   "description": "Private AI sidebar for reading, rewriting, summarizing, and analysis workflows.",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
