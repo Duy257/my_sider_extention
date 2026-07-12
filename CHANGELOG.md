@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-07-12
+
+### Removed
+- Removed the sidebar page reading feature ("Đọc trang") including the button on `HeaderBar`, `readPage` logic, and `readingPage` state in `App.tsx` to streamline the UI.
+
+### Changed
+- Redesigned and relocated the "Chat mới" (New Chat) button from the message area to the sticky `HeaderBar` so that it is always accessible even during long conversations.
+- Overhauled the "Gợi ý nhanh" (Quick Prompts) in `EmptyState` with 5 highly useful scenarios (Concept Explanation, Natural Translation, Style Polish, Info Summarization, Code Optimization) featuring a premium card-style design with descriptive subtext.
+
 ## [0.3.0] - 2026-07-11
 
 ### Added
