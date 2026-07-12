@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { AI_STREAM_PORT } from "../../../src/lib/messaging/ports";
-import type { AiPortResponse } from "../../../src/lib/messaging/types";
-import { buildUserChatMessages } from "../../../src/lib/prompts/builders";
-import type { AiDevContext, AiDevTrace, ToolDevTrace } from "../../../src/lib/devtools/types";
-import { appendReasoning, applyDebugUpdate } from "../../../src/lib/devtools/trace-reducer";
+import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
+import type { AiPortResponse } from "../../../src/core/messaging/types";
+import { buildUserChatMessages } from "../../../src/core/prompts/builders";
+import type { AiDevContext, AiDevTrace, ToolDevTrace } from "../../../src/core/devtools/types";
+import { appendReasoning, applyDebugUpdate } from "../../../src/core/devtools/trace-reducer";
 
 export type ChatMessageItem = {
   kind: "message";

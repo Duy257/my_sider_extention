@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { extractPageContent } from "../../src/lib/extraction";
+import { extractPageContent } from "../../src/core/extraction";
 
 const mockReadability = vi.hoisted(() => vi.fn());
 
-vi.mock("../../src/lib/extraction/readability", () => ({
+vi.mock("../../src/core/extraction/readability", () => ({
   extractReadableText: mockReadability,
 }));
 

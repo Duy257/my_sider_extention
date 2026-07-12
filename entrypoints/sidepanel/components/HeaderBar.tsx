@@ -15,20 +15,11 @@ function RobotIcon() {
   );
 }
 
-function Spinner() {
-  return (
-    <svg className="h-4 w-4 animate-spinner text-primary-light" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.15" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function HeaderBar(props: {
   view: HeaderView;
   onViewChange: (view: HeaderView) => void;
-  onReadPage: () => void;
-  readingPage?: boolean;
+  onClearChat?: () => void;
+  hasMessages?: boolean;
 }) {
   const tabs: { view: HeaderView; title: string; label: string; icon: React.ReactNode }[] = [
     {
@@ -77,31 +68,20 @@ export function HeaderBar(props: {
       </button>
 
       <div className="flex items-center gap-1">
-        {/* Read Page Button */}
-        <button
-          className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-200 transition-all duration-200 border border-transparent ${
-            props.readingPage 
-              ? "bg-primary-glow border-primary/20 text-primary-light" 
-              : "hover:bg-surface-hover hover:text-stone-50 active:scale-95"
-          }`}
-          title="Đọc trang"
-          onClick={props.onReadPage}
-          disabled={props.readingPage}
-        >
-          {props.readingPage ? (
-            <>
-              <Spinner />
-              <span className="hidden sm:inline animate-pulse">Đang đọc...</span>
-            </>
-          ) : (
-            <>
-              <svg className="h-4 w-4 text-stone-400 group-hover:text-stone-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              <span className="hidden sm:inline">Đọc trang</span>
-            </>
-          )}
-        </button>
+        {/* Chat mới Button */}
+        {props.view === "chat" && props.hasMessages && props.onClearChat && (
+          <button
+            type="button"
+            title="Chat mới"
+            onClick={props.onClearChat}
+            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border border-stone-850 bg-surface/60 text-stone-200 hover:border-primary/40 hover:bg-primary-glow hover:text-primary-light transition-all duration-200 active:scale-95 shadow-[0_0_12px_rgba(124,58,237,0.05)]"
+          >
+            <svg className="h-4 w-4 text-stone-400 group-hover:text-primary-light" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Chat mới</span>
+          </button>
+        )}
 
         {/* AI Reading Companion Button */}
         <button

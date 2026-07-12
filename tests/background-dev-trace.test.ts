@@ -5,9 +5,9 @@ import {
   createToolTrace,
   completeToolTrace,
   failToolTrace
-} from "../src/lib/devtools/background-trace";
-import type { AiDevContext } from "../src/lib/devtools/types";
-import type { ProviderRuntimeConfig } from "../src/lib/ai/runtime";
+} from "../src/core/devtools/background-trace";
+import type { AiDevContext } from "../src/core/devtools/types";
+import type { ProviderRuntimeConfig } from "../src/core/ai/runtime";
 
 describe("background-trace AI Traces", () => {
   const context: AiDevContext = { surface: "sidepanel", feature: "chat" };

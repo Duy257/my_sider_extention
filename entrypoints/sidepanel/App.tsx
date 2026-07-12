@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getProvider } from "../../src/lib/ai/providers";
-import { buildPagePrompt } from "../../src/lib/prompts/builders";
-import { getPromptTemplates, getSavedResults, getSettings, savePromptTemplates, saveSavedResults, saveSettings } from "../../src/lib/storage";
-import type { PromptTemplate } from "../../src/lib/prompts/types";
-import type { SavedResult, Settings } from "../../src/lib/storage/types";
+import { getProvider } from "../../src/core/ai/providers";
+import { getPromptTemplates, getSavedResults, getSettings, savePromptTemplates, saveSavedResults, saveSettings } from "../../src/core/storage";
+import type { PromptTemplate } from "../../src/core/prompts/types";
+import type { SavedResult, Settings } from "../../src/core/storage/types";
 import { ChatComposer } from "./components/ChatComposer";
 import { ChatMessage, TypingIndicator } from "./components/ChatMessage";
 import { HeaderBar, type HeaderView } from "./components/HeaderBar";
@@ -13,14 +12,13 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { SkeletonPanel } from "./components/Skeleton";
 import { EmptyState } from "./components/EmptyState";
 import { useChatController, type ChatMessageItem } from "./hooks/useChatController";
-import { ToolTraceCard } from "../../src/lib/devtools/components/ToolTraceCard";
+import { ToolTraceCard } from "../../src/components/devtools/ToolTraceCard";
 
 export default function App() {
   const [view, setView] = useState<HeaderView>("chat");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
   const [savedResults, setSavedResultsState] = useState<SavedResult[]>([]);
-  const [readingPage, setReadingPage] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const provider = settings ? getProvider(settings.providerId) : undefined;
@@ -93,104 +91,6 @@ export default function App() {
     });
   }
 
-  async function readPage() {
-    chat.setError("");
-    setReadingPage(true);
-    setView("chat");
-    const requestId = crypto.randomUUID();
-    let pendingTrace: any;
-    if (settings?.devMode) {
-      pendingTrace = {
-        requestId,
-        tool: "read-page",
-        status: "pending",
-        startedAt: Date.now(),
-        metadata: {}
-      };
-      chat.setMessages((current) => [
-        ...current,
-        { kind: "tool-trace", id: requestId, trace: pendingTrace }
-      ]);
-    }
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: "EXTRACT_ACTIVE_PAGE",
-        requestId
-      });
-
-      if (response?.error) {
-        if (response.toolTrace) {
-          chat.setMessages((current) =>
-            current.map((item) =>
-              item.id === requestId && item.kind === "tool-trace"
-                ? { ...item, trace: response.toolTrace }
-                : item
-            )
-          );
-        } else if (pendingTrace) {
-          chat.setMessages((current) =>
-            current.map((item) =>
-              item.id === requestId && item.kind === "tool-trace"
-                ? { ...item, trace: { ...pendingTrace, status: "error", finishedAt: Date.now(), error: response.error } }
-                : item
-            )
-          );
-        }
-        chat.setError(response.error);
-        return;
-      }
-
-      if (!response?.text) {
-        if (pendingTrace) {
-          chat.setMessages((current) =>
-            current.map((item) =>
-              item.id === requestId && item.kind === "tool-trace"
-                ? { ...item, trace: { ...pendingTrace, status: "error", finishedAt: Date.now(), error: "No readable content found." } }
-                : item
-            )
-          );
-        }
-        chat.setError("Trang này không có nội dung đọc được.");
-        return;
-      }
-
-      if (response.toolTrace) {
-        chat.setMessages((current) =>
-          current.map((item) =>
-            item.id === requestId && item.kind === "tool-trace"
-              ? { ...item, trace: response.toolTrace }
-              : item
-          )
-        );
-      }
-
-      chat.sendPrompt(
-        buildPagePrompt({
-          title: response.title,
-          url: response.url,
-          text: response.text,
-          warnings: response.warnings || []
-        }),
-        undefined,
-        settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined
-      );
-    } catch {
-      if (pendingTrace) {
-        chat.setMessages((current) =>
-          current.map((item) =>
-            item.id === requestId && item.kind === "tool-trace"
-              ? { ...item, trace: { ...pendingTrace, status: "error", finishedAt: Date.now(), error: "Không thể đọc trang." } }
-              : item
-          )
-        );
-      }
-      chat.setError("Không thể đọc trang.");
-    } finally {
-      setReadingPage(false);
-    }
-  }
-
   if (!settings) {
     return (
       <main className="flex min-h-screen flex-col bg-warm-bg text-stone-50">
@@ -201,7 +101,12 @@ export default function App() {
 
   return (
     <main className="flex min-h-screen flex-col bg-warm-bg text-stone-50">
-      <HeaderBar view={view} onViewChange={setView} onReadPage={readPage} readingPage={readingPage} />
+      <HeaderBar 
+        view={view} 
+        onViewChange={setView} 
+        onClearChat={chat.clearChat} 
+        hasMessages={chat.messages.length > 0 || chat.streaming} 
+      />
       
       {chat.error ? (
         <div className="mx-3 mt-3 flex items-center gap-2.5 rounded-xl border border-red-900/30 bg-red-950/20 px-3.5 py-2.5 text-xs text-red-400 animate-fade-in-up">
@@ -230,18 +135,6 @@ export default function App() {
       
       {view === "chat" ? (
         <>
-          {chat.messages.length > 0 || chat.streaming ? (
-            <div className="flex justify-end px-3.5 pt-3">
-              <button
-                type="button"
-                title="Chat mới"
-                onClick={chat.clearChat}
-                className="rounded-lg border border-stone-800/60 bg-surface/60 px-3 py-1.5 text-xs font-medium text-stone-300 transition-colors hover:border-primary/30 hover:text-stone-100"
-              >
-                Chat mới
-              </button>
-            </div>
-          ) : null}
           <section className="flex-1 space-y-3.5 overflow-auto p-3.5" aria-live="polite" aria-relevant="additions">
             {chat.messages.length === 0 ? (
               <EmptyState onChipClick={(text) => chat.sendPrompt(text, undefined, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined)} />

@@ -1,10 +1,10 @@
-import { fetchModels, streamChatCompletion, testConnection } from "../src/lib/ai/client";
-import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../src/lib/ai/runtime";
-import { AI_STREAM_PORT } from "../src/lib/messaging/ports";
-import type { AiPortRequest, ExtensionMessage } from "../src/lib/messaging/types";
-import { getSettings } from "../src/lib/storage";
-import type { Settings } from "../src/lib/storage/types";
-import { createAiTrace, createAiPortTraceEmitter, createToolTrace, completeToolTrace, failToolTrace } from "../src/lib/devtools/background-trace";
+import { fetchModels, streamChatCompletion, testConnection } from "../src/core/ai/client";
+import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../src/core/ai/runtime";
+import { AI_STREAM_PORT } from "../src/core/messaging/ports";
+import type { AiPortRequest, ExtensionMessage } from "../src/core/messaging/types";
+import { getSettings } from "../src/core/storage";
+import type { Settings } from "../src/core/storage/types";
+import { createAiTrace, createAiPortTraceEmitter, createToolTrace, completeToolTrace, failToolTrace } from "../src/core/devtools/background-trace";
 
 let settingsCache: { settings: Settings; timestamp: number } | null = null;
 const SETTINGS_CACHE_TTL = 5_000; // 5 seconds
@@ -400,7 +400,7 @@ export default defineBackground(() => {
     }
 
     if (message.type === "READER_SAVE_SESSION") {
-      import("../src/lib/storage/index").then(({ getSavedResults, saveSavedResults }) => {
+      import("../src/core/storage/index").then(({ getSavedResults, saveSavedResults }) => {
         getSavedResults().then((results) => {
           const newResult = {
             id: crypto.randomUUID(),
@@ -410,7 +410,7 @@ export default defineBackground(() => {
             sourceTitle: message.title || "",
             outputMarkdown: message.summary || "",
             createdAt: message.date || new Date().toISOString(),
-          } satisfies import("../src/lib/storage/types").SavedResult;
+          } satisfies import("../src/core/storage/types").SavedResult;
           saveSavedResults([newResult, ...results]).then(() => {
             sendResponse({ ok: true });
           });

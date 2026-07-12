@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import type { AiDevTrace } from "../types";
-import { DEV_COPY } from "../copy";
+import type { AiDevTrace } from "../../core/devtools/types";
+import { DEV_COPY } from "../../core/devtools/copy";
 
 type DebugDetailsProps = {
   trace: AiDevTrace;

@@ -3,24 +3,25 @@ import { HeaderBar } from "../entrypoints/sidepanel/components/HeaderBar";
 import { expect, test, vi } from "vitest";
 
 test("renders brand name and all navigation tabs", () => {
-  render(<HeaderBar view="chat" onViewChange={() => {}} onReadPage={() => {}} readingPage={false} />);
+  render(<HeaderBar view="chat" onViewChange={() => {}} />);
 
   expect(screen.getByText("AI Cá Nhân")).toBeInTheDocument();
-  expect(screen.getByTitle("Đọc trang")).toBeInTheDocument();
   expect(screen.getByTitle("Mẫu lệnh")).toBeInTheDocument();
   expect(screen.getByTitle("Đã lưu")).toBeInTheDocument();
   expect(screen.getByTitle("Cài đặt")).toBeInTheDocument();
 });
 
 test("active tab has primary color and underline", () => {
-  render(<HeaderBar view="settings" onViewChange={() => {}} onReadPage={() => {}} />);
+  render(<HeaderBar view="settings" onViewChange={() => {}} />);
 
   const settingsBtn = screen.getByTitle("Cài đặt");
   expect(settingsBtn.className).toContain("text-primary");
 });
 
-test("read page button shows spinner when reading", () => {
-  const { container } = render(<HeaderBar view="chat" onViewChange={() => {}} onReadPage={() => {}} readingPage={true} />);
+test("chat mới button shows when has messages", () => {
+  const handleClear = vi.fn();
+  render(<HeaderBar view="chat" onViewChange={() => {}} onClearChat={handleClear} hasMessages={true} />);
 
-  expect(container.querySelector(".animate-spinner")).toBeInTheDocument();
+  const clearBtn = screen.getByTitle("Chat mới");
+  expect(clearBtn).toBeInTheDocument();
 });

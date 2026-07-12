@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { FloatingWindow } from "../src/lib/floating-window/FloatingWindow";
+import { FloatingWindow } from "../src/components/floating-window/FloatingWindow";
 import { portEntries } from "./setup";
 
 describe("FloatingWindow", () => {

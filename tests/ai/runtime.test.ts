@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../../src/lib/ai/runtime";
-import type { Settings } from "../../src/lib/storage/types";
+import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../../src/core/ai/runtime";
+import type { Settings } from "../../src/core/storage/types";
 
 function settings(overrides: Partial<Settings>): Settings {
   return {

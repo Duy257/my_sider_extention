@@ -1,11 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { FloatingWindow } from "./FloatingWindow";
+import { FloatingWindow } from "../components/floating-window/FloatingWindow";
 
 let currentRoot: ReactDOM.Root | null = null;
 let currentContainer: HTMLElement | null = null;
 
-import type { ToolDevTrace } from "../devtools/types";
+import type { ToolDevTrace } from "../core/devtools/types";
 
 export interface MountOptions {
   position: { top: number; left: number };

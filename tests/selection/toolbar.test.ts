@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../../src/lib/selection/toolbar";
+import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../../src/core/selection/toolbar";
 
 const ACTION_LABELS = [
   "Giải thích",

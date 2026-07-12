@@ -1,8 +1,8 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { DebugDetails } from "../../src/lib/devtools/components/DebugDetails";
-import type { AiDevTrace } from "../../src/lib/devtools/types";
-import { DEV_COPY } from "../../src/lib/devtools/copy";
+import { DebugDetails } from "../../src/components/devtools/DebugDetails";
+import type { AiDevTrace } from "../../src/core/devtools/types";
+import { DEV_COPY } from "../../src/core/devtools/copy";
 
 describe("DebugDetails component", () => {
   const baseTrace: AiDevTrace = {

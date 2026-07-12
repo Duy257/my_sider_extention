@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { ToolDevTrace } from "../types";
-import { DEV_COPY } from "../copy";
+import type { ToolDevTrace } from "../../core/devtools/types";
+import { DEV_COPY } from "../../core/devtools/copy";
 
 type ToolTraceCardProps = {
   trace: ToolDevTrace;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import type { SavedResult } from "../../../src/lib/storage/types";
-import { MessageContent } from "../../../src/lib/ui/MessageContent";
+import type { SavedResult } from "../../../src/core/storage/types";
+import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
 
 export function SavedResults(props: {
   results: SavedResult[];

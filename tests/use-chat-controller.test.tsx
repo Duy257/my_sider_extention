@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useChatController, type ChatMessageItem } from "../entrypoints/sidepanel/hooks/useChatController";
-import type { AiDevTrace } from "../src/lib/devtools/types";
+import type { AiDevTrace } from "../src/core/devtools/types";
 import { portEntries } from "./setup";
 
 describe("useChatController", () => {

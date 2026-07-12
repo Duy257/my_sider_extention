@@ -3,16 +3,29 @@ import React from "react";
 export function EmptyState(props: { onChipClick?: (text: string) => void }) {
   const chips = [
     { 
-      label: "📝 Tóm tắt trang này", 
-      prompt: "Hãy tóm tắt nội dung trang này một cách súc tích, tập trung vào các điểm chính." 
+      label: "🔍 Giải thích khái niệm", 
+      desc: "Làm rõ thuật ngữ hoặc định nghĩa khó hiểu",
+      prompt: "Hãy giải thích chi tiết nhưng dễ hiểu khái niệm sau đây kèm ví dụ thực tế: " 
     },
     { 
-      label: "💡 Phân tích CEO", 
-      prompt: "Phân tích nội dung được chọn dưới góc nhìn CEO, đưa ra nhận định thực tế." 
+      label: "🌐 Dịch thuật tự nhiên", 
+      desc: "Dịch song ngữ Anh - Việt trôi chảy, đúng ngữ cảnh",
+      prompt: "Dịch đoạn văn bản sau sang tiếng Việt (hoặc ngược lại nếu là tiếng Anh), đảm bảo diễn đạt tự nhiên như người bản xứ và giữ đúng thuật ngữ chuyên ngành: " 
     },
     { 
-      label: "✍️ Viết lại email", 
-      prompt: "Hãy viết lại nội dung sau đây thành một email chuyên nghiệp, lịch sự nhưng súc tích." 
+      label: "✍️ Nâng cấp văn phong", 
+      desc: "Sửa lỗi ngữ pháp, viết lại chuyên nghiệp hơn",
+      prompt: "Hãy sửa lỗi ngữ pháp và viết lại đoạn văn bản dưới đây theo phong cách chuyên nghiệp, lịch sự và thuyết phục hơn: " 
+    },
+    { 
+      label: "📊 Tóm tắt thông tin", 
+      desc: "Lọc ý chính và số liệu từ văn bản của bạn",
+      prompt: "Tóm tắt các ý chính và lọc ra danh sách các số liệu, thông tin quan trọng từ đoạn văn bản sau: " 
+    },
+    { 
+      label: "💻 Giải thích & Tối ưu Code", 
+      desc: "Tìm lỗi và cải tiến hiệu năng đoạn mã",
+      prompt: "Giải thích đoạn code sau hoạt động thế nào và gợi ý cách tối ưu hoặc sửa lỗi nếu có:\n\n```\n\n```" 
     },
   ];
 
@@ -34,16 +47,21 @@ export function EmptyState(props: { onChipClick?: (text: string) => void }) {
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 w-full max-w-[280px] mt-2">
+      <div className="flex flex-col gap-2.5 w-full max-w-[280px] mt-2">
         <span className="text-[10px] uppercase font-bold tracking-wider text-stone-500 text-left pl-1">Gợi ý nhanh</span>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {chips.map((chip) => (
             <button
               key={chip.label}
-              className="w-full text-left rounded-xl border border-stone-800/40 bg-surface/50 px-3.5 py-2.5 text-xs text-stone-300 hover:text-stone-100 hover:bg-surface hover:border-primary/30 active:scale-[0.98] transition-all duration-200"
+              className="w-full text-left rounded-xl border border-stone-850 bg-stone-900/30 hover:bg-stone-800/40 px-3.5 py-2.5 text-stone-300 hover:text-stone-50 hover:border-primary/30 active:scale-[0.98] transition-all duration-200 shadow-sm flex flex-col gap-0.5 group"
               onClick={() => props.onChipClick?.(chip.prompt)}
             >
-              {chip.label}
+              <span className="text-xs font-semibold text-stone-200 group-hover:text-primary-light transition-colors duration-200">
+                {chip.label}
+              </span>
+              <span className="text-[10px] text-stone-400 group-hover:text-stone-300 transition-colors duration-200 leading-normal">
+                {chip.desc}
+              </span>
             </button>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { PromptTemplate } from "../../../src/lib/prompts/types";
+import type { PromptTemplate } from "../../../src/core/prompts/types";
 
 export function PromptManager(props: {
   prompts: PromptTemplate[];

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AI_STREAM_PORT } from "../../../src/lib/messaging/ports";
-import type { AiPortResponse } from "../../../src/lib/messaging/types";
-import { buildUserChatMessages } from "../../../src/lib/prompts/builders";
-import { MessageContent } from "../../../src/lib/ui/MessageContent";
+import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
+import type { AiPortResponse } from "../../../src/core/messaging/types";
+import { buildUserChatMessages } from "../../../src/core/prompts/builders";
+import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
 
 type SummaryLength = "short" | "medium" | "detailed";
 

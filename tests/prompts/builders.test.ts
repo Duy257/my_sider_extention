@@ -3,7 +3,7 @@ import {
   buildPagePrompt,
   buildSelectionPrompt,
   buildUserChatMessages
-} from "../../src/lib/prompts/builders";
+} from "../../src/core/prompts/builders";
 
 describe("prompt builders", () => {
   it("builds a page prompt with truncation warning in Vietnamese", () => {

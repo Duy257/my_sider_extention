@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { getProvider, getProviderOptions } from "../../../src/lib/ai/providers";
-import type { LoadModelsResponse, TestConnectionResponse } from "../../../src/lib/messaging/types";
-import type { Settings } from "../../../src/lib/storage/types";
-import { DEV_COPY } from "../../../src/lib/devtools/copy";
+import { getProvider, getProviderOptions } from "../../../src/core/ai/providers";
+import type { LoadModelsResponse, TestConnectionResponse } from "../../../src/core/messaging/types";
+import type { Settings } from "../../../src/core/storage/types";
+import { DEV_COPY } from "../../../src/core/devtools/copy";
 
 function EyeIcon() {
   return (

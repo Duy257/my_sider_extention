@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { AI_STREAM_PORT } from "../messaging/ports";
-import { buildUserChatMessages } from "../prompts/builders";
-import type { AiPortResponse } from "../messaging/types";
+import { AI_STREAM_PORT } from "../../core/messaging/ports";
+import { buildUserChatMessages } from "../../core/prompts/builders";
+import type { AiPortResponse } from "../../core/messaging/types";
 import type { WindowState, StreamState } from "./types";
 import { WindowHeader } from "./WindowHeader";
 import { FloatingChatMessage } from "./FloatingChatMessage";
-import type { ToolDevTrace, AiDevTrace } from "../devtools/types";
-import { ToolTraceCard } from "../devtools/components/ToolTraceCard";
-import { DebugDetails } from "../devtools/components/DebugDetails";
-import { appendReasoning, applyDebugUpdate } from "../devtools/trace-reducer";
+import type { ToolDevTrace, AiDevTrace } from "../../core/devtools/types";
+import { ToolTraceCard } from "../devtools/ToolTraceCard";
+import { DebugDetails } from "../devtools/DebugDetails";
+import { appendReasoning, applyDebugUpdate } from "../../core/devtools/trace-reducer";
 
 const DEFAULT_WIDTH = 380;
 const DEFAULT_HEIGHT = 500;

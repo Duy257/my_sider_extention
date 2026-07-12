@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultSettings } from "../../src/lib/storage/defaults";
+import { createDefaultSettings } from "../../src/core/storage/defaults";
 
 describe("createDefaultSettings", () => {
   it("has thinkingMode off by default", () => {

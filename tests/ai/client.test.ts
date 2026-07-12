@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchCompletion, fetchModels, streamChatCompletion, testConnection } from "../../src/lib/ai/client";
+import { fetchCompletion, fetchModels, streamChatCompletion, testConnection } from "../../src/core/ai/client";
 
 function createMockSSE(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();

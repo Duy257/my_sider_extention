@@ -5,8 +5,8 @@ import { ProgressBar } from "./components/ProgressBar";
 import { ReaderHeader } from "./components/ReaderHeader";
 import { ReaderView } from "./components/ReaderView";
 import type { SelectionInfo } from "./types";
-import { ToolTraceCard } from "../../src/lib/devtools/components/ToolTraceCard";
-import type { ToolDevTrace } from "../../src/lib/devtools/types";
+import { ToolTraceCard } from "../../src/components/devtools/ToolTraceCard";
+import type { ToolDevTrace } from "../../src/core/devtools/types";
 
 type PageData = {
   title: string;

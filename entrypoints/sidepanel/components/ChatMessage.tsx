@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { MessageContent } from "../../../src/lib/ui/MessageContent";
-import { DebugDetails } from "../../../src/lib/devtools/components/DebugDetails";
-import type { AiDevTrace } from "../../../src/lib/devtools/types";
+import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
+import { DebugDetails } from "../../../src/components/devtools/DebugDetails";
+import type { AiDevTrace } from "../../../src/core/devtools/types";
 
 function RobotAvatar() {
   return (

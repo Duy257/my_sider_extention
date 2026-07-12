@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultSettings, createInitialPromptTemplates } from "../../src/lib/storage/defaults";
-import { CURRENT_SCHEMA_VERSION, migrateSettingsEnvelope, migrateStorageEnvelope } from "../../src/lib/storage/migrations";
+import { createDefaultSettings, createInitialPromptTemplates } from "../../src/core/storage/defaults";
+import { CURRENT_SCHEMA_VERSION, migrateSettingsEnvelope, migrateStorageEnvelope } from "../../src/core/storage/migrations";
 
 describe("storage defaults", () => {
   it("creates provider-keyed settings", () => {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { AiDevTrace } from "../../src/lib/devtools/types";
+import type { AiDevTrace } from "../../src/core/devtools/types";
 import {
   appendReasoning,
   markFirstToken,
   applyDebugUpdate,
   finishAiTrace,
   failAiTrace
-} from "../../src/lib/devtools/trace-reducer";
+} from "../../src/core/devtools/trace-reducer";
 
 describe("trace-reducer", () => {
   const baseTrace: AiDevTrace = {

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { SavedResults } from "../entrypoints/sidepanel/components/SavedResults";
-import type { SavedResult } from "../src/lib/storage/types";
+import type { SavedResult } from "../src/core/storage/types";
 import { expect, test, vi } from "vitest";
 
 const mockResults: SavedResult[] = [

@@ -1,8 +1,8 @@
-import { extractPageContent } from "../src/lib/extraction";
-import { buildSelectionPrompt } from "../src/lib/prompts/builders";
-import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../src/lib/selection/toolbar";
-import type { SelectionAction } from "../src/lib/selection/types";
-import { mountFloatingWindow } from "../src/lib/floating-window/mount";
+import { extractPageContent } from "../src/core/extraction";
+import { buildSelectionPrompt } from "../src/core/prompts/builders";
+import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../src/core/selection/toolbar";
+import type { SelectionAction } from "../src/core/selection/types";
+import { mountFloatingWindow } from "../src/scripts/floating-mount.ts";
 
 export default defineUnlistedScript(() => {
   if (window.__personalAiSidebarAgentInstalled) return;

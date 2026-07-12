@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchCompletion } from "../../../src/lib/ai/client";
-import { resolveProviderRuntimeConfig } from "../../../src/lib/ai/runtime";
-import { getSettings } from "../../../src/lib/storage";
+import { fetchCompletion } from "../../../src/core/ai/client";
+import { resolveProviderRuntimeConfig } from "../../../src/core/ai/runtime";
+import { getSettings } from "../../../src/core/storage";
 import type { SelectionInfo } from "../types";
 
 type DefinitionPopoverProps = {

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PromptManager } from "../entrypoints/sidepanel/components/PromptManager";
-import type { PromptTemplate } from "../src/lib/prompts/types";
+import type { PromptTemplate } from "../src/core/prompts/types";
 import { expect, test, vi } from "vitest";
 
 const mockPrompts: PromptTemplate[] = [

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultProviderId, getProvider, getProviderOptions, normalizeProviders, PROVIDERS } from "../../src/lib/ai/providers";
+import { getDefaultProviderId, getProvider, getProviderOptions, normalizeProviders, PROVIDERS } from "../../src/core/ai/providers";
 
 describe("provider registry", () => {
   it("loads bundled provider definitions", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapStreamError } from "../../src/lib/ai/stream";
+import { mapStreamError } from "../../src/core/ai/stream";
 
 describe("mapStreamError", () => {
   it("returns empty string for AbortError", () => {

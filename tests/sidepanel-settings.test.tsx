@@ -2,8 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPanel } from "../entrypoints/sidepanel/components/SettingsPanel";
-import type { Settings } from "../src/lib/storage/types";
-import { DEV_COPY } from "../src/lib/devtools/copy";
+import type { Settings } from "../src/core/storage/types";
+import { DEV_COPY } from "../src/core/devtools/copy";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {

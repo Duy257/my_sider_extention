@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ExtensionMessage } from "../../../src/lib/messaging/types";
-import type { AiDevTrace, ToolDevTrace } from "../../../src/lib/devtools/types";
+import type { ExtensionMessage } from "../../../src/core/messaging/types";
+import type { AiDevTrace, ToolDevTrace } from "../../../src/core/devtools/types";
 
 describe("ExtensionMessage", () => {
   it("accepts OPEN_READING_COMPANION", () => {

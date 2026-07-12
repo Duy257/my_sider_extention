@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readStreamDebugEvent } from "../../src/lib/devtools/stream";
+import { readStreamDebugEvent } from "../../src/core/devtools/stream";
 
 describe("readStreamDebugEvent", () => {
   it("extracts reasoning content, finish reason, and usage from a standard chunk", () => {

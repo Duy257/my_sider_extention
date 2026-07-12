@@ -1,8 +1,8 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ToolTraceCard } from "../../src/lib/devtools/components/ToolTraceCard";
-import type { ToolDevTrace } from "../../src/lib/devtools/types";
-import { DEV_COPY } from "../../src/lib/devtools/copy";
+import { ToolTraceCard } from "../../src/components/devtools/ToolTraceCard";
+import type { ToolDevTrace } from "../../src/core/devtools/types";
+import { DEV_COPY } from "../../src/core/devtools/copy";
 
 describe("ToolTraceCard component", () => {
   const baseTrace: ToolDevTrace = {
