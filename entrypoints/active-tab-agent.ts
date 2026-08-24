@@ -1,6 +1,11 @@
 import { extractPageContent } from "../src/core/extraction";
-import { buildSelectionPrompt } from "../src/core/prompts/builders";
-import { isSelectionLengthAllowed, isSelectionTooLong, renderSelectionToolbar, renderTooLongIndicator } from "../src/core/selection/toolbar";
+import { buildSelectionMessages } from "../src/core/prompts/builders";
+import {
+  isSelectionLengthAllowed,
+  isSelectionTooLong,
+  renderSelectionToolbar,
+  renderTooLongIndicator,
+} from "../src/core/selection/toolbar";
 import type { SelectionAction } from "../src/core/selection/types";
 import { mountFloatingWindow } from "../src/scripts/floating-mount.ts";
 
@@ -16,7 +21,7 @@ export default defineUnlistedScript(() => {
   function removeToolbar() {
     if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
     hideTimeoutId = null;
-    
+
     if (toolbar) {
       const el = toolbar;
       el.style.opacity = "0";
@@ -24,7 +29,7 @@ export default defineUnlistedScript(() => {
       setTimeout(() => el.remove(), 150);
       toolbar = null;
     }
-    
+
     if (tooLongIndicator) {
       const el = tooLongIndicator;
       el.style.opacity = "0";
@@ -40,7 +45,9 @@ export default defineUnlistedScript(() => {
 
   function selectionPosition(): { top: number; left: number } {
     const selection = window.getSelection();
-    const rect = selection?.rangeCount ? selection.getRangeAt(0).getBoundingClientRect() : null;
+    const rect = selection?.rangeCount
+      ? selection.getRangeAt(0).getBoundingClientRect()
+      : null;
     if (!rect) return { top: 8, left: 8 };
 
     const toolbarHeight = 42;
@@ -75,14 +82,16 @@ export default defineUnlistedScript(() => {
       text,
       url: window.location.href,
       title: document.title || "Untitled page",
-      prompt: buildSelectionPrompt(action, text),
-      position: { top: pos.top, left: pos.left }
+      messages: buildSelectionMessages(action, text),
+      position: { top: pos.top, left: pos.left },
     });
   }
 
   function showToolbar() {
     // Purge any existing toolbar or indicator elements immediately
-    document.querySelectorAll('[data-personal-ai-toolbar]').forEach(el => el.remove());
+    document
+      .querySelectorAll("[data-personal-ai-toolbar]")
+      .forEach((el) => el.remove());
     if (hideTimeoutId !== null) clearTimeout(hideTimeoutId);
     hideTimeoutId = null;
     toolbar = null;
@@ -93,7 +102,10 @@ export default defineUnlistedScript(() => {
 
     if (isSelectionTooLong(text)) {
       const pos = selectionPosition();
-      tooLongIndicator = renderTooLongIndicator({ top: pos.top, left: pos.left });
+      tooLongIndicator = renderTooLongIndicator({
+        top: pos.top,
+        left: pos.left,
+      });
       document.body.appendChild(tooLongIndicator);
       return;
     }
@@ -124,7 +136,9 @@ export default defineUnlistedScript(() => {
     document.removeEventListener("mousedown", handleMousedown);
     document.removeEventListener("keydown", handleKeydown);
     window.removeEventListener("resize", handleResize);
-    document.querySelectorAll('[data-personal-ai-toolbar]').forEach(el => el.remove());
+    document
+      .querySelectorAll("[data-personal-ai-toolbar]")
+      .forEach((el) => el.remove());
   }
 
   function handleSelectionChange() {
@@ -187,7 +201,7 @@ export default defineUnlistedScript(() => {
     if (message.type === "FORWARD_SELECTION_ACTION") {
       mountFloatingWindow({
         position: message.actionPosition ?? { top: 200, left: 200 },
-        prompt: message.prompt,
+        messages: message.messages,
         requestId: message.requestId,
         title: message.title,
         toolTrace: message.toolTrace,

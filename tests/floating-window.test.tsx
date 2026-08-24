@@ -12,7 +12,10 @@ describe("FloatingWindow", () => {
 
   const defaultProps = {
     initialPosition: { top: 100, left: 100 },
-    prompt: "Test prompt",
+    messages: [
+      { role: "system" as const, content: "system" },
+      { role: "user" as const, content: "Test prompt" },
+    ],
     requestId: "test-id",
     onClose: vi.fn(),
   };
@@ -50,23 +53,28 @@ describe("FloatingWindow", () => {
       finishedAt: 1200,
       metadata: {
         action: "summarize",
-        textLength: 50
-      }
+        textLength: 50,
+      },
     };
     render(React.createElement(FloatingWindow, { ...defaultProps, toolTrace }));
-    
+
     const { act } = await import("@testing-library/react");
-    
+
     // Allow useEffect to run and connect port
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     const port = portEntries[0];
-    const requestId = (chrome.runtime.connect as any).mock.results[0].value.postMessage.mock.calls[0][0].requestId;
-    
+    const requestId = (chrome.runtime.connect as any).mock.results[0].value
+      .postMessage.mock.calls[0][0].requestId;
+
     act(() => {
-      port.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Answer text" });
+      port.onMessage.trigger({
+        type: "AI_STREAM_CHUNK",
+        requestId,
+        delta: "Answer text",
+      });
     });
 
     expect(await screen.findByText("Answer text")).toBeInTheDocument();
@@ -82,8 +90,8 @@ describe("FloatingWindow", () => {
       finishedAt: 1200,
       metadata: {
         action: "summarize",
-        textLength: 50
-      }
+        textLength: 50,
+      },
     };
     render(React.createElement(FloatingWindow, { ...defaultProps, toolTrace }));
 
@@ -93,7 +101,8 @@ describe("FloatingWindow", () => {
     });
 
     const port = portEntries[0];
-    const requestId = (chrome.runtime.connect as any).mock.results[0].value.postMessage.mock.calls[0][0].requestId;
+    const requestId = (chrome.runtime.connect as any).mock.results[0].value
+      .postMessage.mock.calls[0][0].requestId;
 
     const mockAiTrace = {
       requestId,
@@ -107,13 +116,25 @@ describe("FloatingWindow", () => {
       startedAt: 1000,
       finishedAt: 1500,
       thinking: { state: "not-returned" as const, content: "" },
-      usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 }
+      usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 },
     };
 
     act(() => {
-      port.onMessage.trigger({ type: "AI_STREAM_DEBUG_START", requestId, trace: mockAiTrace });
-      port.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Answer content" });
-      port.onMessage.trigger({ type: "AI_STREAM_DONE", requestId, trace: mockAiTrace });
+      port.onMessage.trigger({
+        type: "AI_STREAM_DEBUG_START",
+        requestId,
+        trace: mockAiTrace,
+      });
+      port.onMessage.trigger({
+        type: "AI_STREAM_CHUNK",
+        requestId,
+        delta: "Answer content",
+      });
+      port.onMessage.trigger({
+        type: "AI_STREAM_DONE",
+        requestId,
+        trace: mockAiTrace,
+      });
     });
 
     expect(await screen.findByText("Answer content")).toBeInTheDocument();

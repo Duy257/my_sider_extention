@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { AI_STREAM_PORT } from "../../core/messaging/ports";
-import { buildUserChatMessages } from "../../core/prompts/builders";
+import type { AiMessage } from "../../core/ai/types";
 import type { AiPortResponse } from "../../core/messaging/types";
 import type { WindowState, StreamState } from "./types";
 import { WindowHeader } from "./WindowHeader";
@@ -8,7 +8,10 @@ import { FloatingChatMessage } from "./FloatingChatMessage";
 import type { ToolDevTrace, AiDevTrace } from "../../core/devtools/types";
 import { ToolTraceCard } from "../devtools/ToolTraceCard";
 import { DebugDetails } from "../devtools/DebugDetails";
-import { appendReasoning, applyDebugUpdate } from "../../core/devtools/trace-reducer";
+import {
+  appendReasoning,
+  applyDebugUpdate,
+} from "../../core/devtools/trace-reducer";
 
 const DEFAULT_WIDTH = 380;
 const DEFAULT_HEIGHT = 500;
@@ -31,7 +34,10 @@ const styles = {
       overflow: "hidden",
       display: "flex",
       flexDirection: "column",
-      transition: state === "minimized" ? "width 0.25s ease, height 0.25s ease" : "width 0.2s ease, height 0.2s ease",
+      transition:
+        state === "minimized"
+          ? "width 0.25s ease, height 0.25s ease"
+          : "width 0.2s ease, height 0.2s ease",
     };
     return base;
   },
@@ -67,7 +73,7 @@ const styles = {
 
 export function FloatingWindow(props: {
   initialPosition: { top: number; left: number };
-  prompt: string;
+  messages: AiMessage[];
   requestId: string;
   onClose: () => void;
   toolTrace?: ToolDevTrace;
@@ -79,28 +85,47 @@ export function FloatingWindow(props: {
   const [aiTrace, setAiTrace] = useState<AiDevTrace | undefined>(undefined);
 
   // Position and size state
-  const [pos, setPos] = useState({ top: props.initialPosition.top, left: props.initialPosition.left });
-  const [size, setSize] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+  const [pos, setPos] = useState({
+    top: props.initialPosition.top,
+    left: props.initialPosition.left,
+  });
+  const [size, setSize] = useState({
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+  });
   const defaultPosRef = useRef(props.initialPosition);
 
   // Drag state
-  const dragRef = useRef<{ startX: number; startY: number; startTop: number; startLeft: number } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    startTop: number;
+    startLeft: number;
+  } | null>(null);
   // Resize state
-  const resizeRef = useRef<{ startX: number; startY: number; startWidth: number; startHeight: number } | null>(null);
+  const resizeRef = useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
 
   // Clamp position to viewport
-  const clampToViewport = useCallback((top: number, left: number, w?: number, h?: number) => {
-    const ww = window.innerWidth;
-    const wh = window.innerHeight;
-    const cw = w ?? size.width;
-    const ch = h ?? size.height;
-    return {
-      top: Math.max(0, Math.min(top, wh - Math.min(ch, wh))),
-      left: Math.max(0, Math.min(left, ww - Math.min(cw, ww))),
-    };
-  }, [size]);
+  const clampToViewport = useCallback(
+    (top: number, left: number, w?: number, h?: number) => {
+      const ww = window.innerWidth;
+      const wh = window.innerHeight;
+      const cw = w ?? size.width;
+      const ch = h ?? size.height;
+      return {
+        top: Math.max(0, Math.min(top, wh - Math.min(ch, wh))),
+        left: Math.max(0, Math.min(left, ww - Math.min(cw, ww))),
+      };
+    },
+    [size],
+  );
 
   // AI stream via port
   const isDoneRef = useRef(false);
@@ -135,11 +160,20 @@ export function FloatingWindow(props: {
       }
 
       if (message.type === "AI_STREAM_REASONING") {
-        setAiTrace((prev) => prev ? appendReasoning(prev, message.delta) : prev);
+        setAiTrace((prev) =>
+          prev ? appendReasoning(prev, message.delta) : prev,
+        );
       }
 
       if (message.type === "AI_STREAM_DEBUG_UPDATE") {
-        setAiTrace((prev) => prev ? applyDebugUpdate(prev, { usage: message.usage, finishReason: message.finishReason }) : prev);
+        setAiTrace((prev) =>
+          prev
+            ? applyDebugUpdate(prev, {
+                usage: message.usage,
+                finishReason: message.finishReason,
+              })
+            : prev,
+        );
       }
 
       if (message.type === "AI_STREAM_DONE") {
@@ -167,88 +201,110 @@ export function FloatingWindow(props: {
     port.postMessage({
       type: "AI_CHAT_REQUEST",
       requestId: props.requestId,
-      messages: buildUserChatMessages(props.prompt),
-      ...(isDevModeActive ? { devContext: { surface: "floating-window", feature: "chat" } } : {})
+      messages: props.messages,
+      ...(isDevModeActive
+        ? { devContext: { surface: "floating-window", feature: "chat" } }
+        : {}),
     });
 
     return () => {
-      try { port.disconnect(); } catch {}
+      try {
+        port.disconnect();
+      } catch {}
     };
-  }, [props.requestId, props.prompt, props.toolTrace]);
+  }, [props.requestId, props.messages, props.toolTrace]);
 
   // Keyboard event handlers
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && windowState === "maximized") {
-      setWindowState("default");
-    }
-  }, [windowState]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape" && windowState === "maximized") {
+        setWindowState("default");
+      }
+    },
+    [windowState],
+  );
 
   // Mouse event handlers for drag
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (windowState === "maximized") return;
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-window-control]")) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, startTop: pos.top, startLeft: pos.left };
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (windowState === "maximized") return;
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-window-control]")) return;
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startTop: pos.top,
+        startLeft: pos.left,
+      };
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const dx = ev.clientX - dragRef.current.startX;
-      const dy = ev.clientY - dragRef.current.startY;
-      const newTop = dragRef.current.startTop + dy;
-      const newLeft = dragRef.current.startLeft + dx;
-      const clamped = clampToViewport(newTop, newLeft);
-      setPos(clamped);
-    };
+      const handleMouseMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return;
+        const dx = ev.clientX - dragRef.current.startX;
+        const dy = ev.clientY - dragRef.current.startY;
+        const newTop = dragRef.current.startTop + dy;
+        const newLeft = dragRef.current.startLeft + dx;
+        const clamped = clampToViewport(newTop, newLeft);
+        setPos(clamped);
+      };
 
-    const handleMouseUp = () => {
-      dragRef.current = null;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
+      const handleMouseUp = () => {
+        dragRef.current = null;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  }, [pos, windowState, clampToViewport]);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [pos, windowState, clampToViewport],
+  );
 
   // Mouse event handlers for resize
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (windowState !== "default") return;
-    const el = containerRef.current;
-    if (!el) return;
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (windowState !== "default") return;
+      const el = containerRef.current;
+      if (!el) return;
 
-    resizeRef.current = {
-      startX: e.clientX, startY: e.clientY,
-      startWidth: sizeRef.current.width,
-      startHeight: sizeRef.current.height,
-    };
+      resizeRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startWidth: sizeRef.current.width,
+        startHeight: sizeRef.current.height,
+      };
 
-    document.body.style.cursor = "nwse-resize";
-    document.body.style.userSelect = "none";
+      document.body.style.cursor = "nwse-resize";
+      document.body.style.userSelect = "none";
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      if (!resizeRef.current) return;
-      const dx = ev.clientX - resizeRef.current.startX;
-      const dy = ev.clientY - resizeRef.current.startY;
-      const newWidth = Math.max(MIN_WIDTH, resizeRef.current.startWidth + dx);
-      const newHeight = Math.max(MIN_HEIGHT, resizeRef.current.startHeight + dy);
-      el.style.width = `${newWidth}px`;
-      el.style.height = `${newHeight}px`;
-      sizeRef.current = { width: newWidth, height: newHeight };
-    };
+      const handleMouseMove = (ev: MouseEvent) => {
+        if (!resizeRef.current) return;
+        const dx = ev.clientX - resizeRef.current.startX;
+        const dy = ev.clientY - resizeRef.current.startY;
+        const newWidth = Math.max(MIN_WIDTH, resizeRef.current.startWidth + dx);
+        const newHeight = Math.max(
+          MIN_HEIGHT,
+          resizeRef.current.startHeight + dy,
+        );
+        el.style.width = `${newWidth}px`;
+        el.style.height = `${newHeight}px`;
+        sizeRef.current = { width: newWidth, height: newHeight };
+      };
 
-    const handleMouseUp = () => {
-      setSize(sizeRef.current);
-      resizeRef.current = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
+      const handleMouseUp = () => {
+        setSize(sizeRef.current);
+        resizeRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  }, [windowState]);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [windowState],
+  );
 
   // Compute container styles
   let containerStyle: React.CSSProperties;
@@ -319,7 +375,12 @@ export function FloatingWindow(props: {
   }, []);
 
   return (
-    <div style={containerStyle} onKeyDown={handleKeyDown} tabIndex={0} ref={containerRef as React.RefObject<HTMLDivElement>}>
+    <div
+      style={containerStyle}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      ref={containerRef as React.RefObject<HTMLDivElement>}
+    >
       <WindowHeader
         title={windowState === "minimized" ? "AI" : "AI Assistant"}
         windowState={windowState}
@@ -340,7 +401,10 @@ export function FloatingWindow(props: {
           )}
           {(streamState === "streaming" || streamState === "done") && (
             <>
-              <FloatingChatMessage content={responseContent} streamState={streamState} />
+              <FloatingChatMessage
+                content={responseContent}
+                streamState={streamState}
+              />
               {props.toolTrace && (
                 <div style={{ marginTop: "12px" }}>
                   <ToolTraceCard trace={props.toolTrace} compact />

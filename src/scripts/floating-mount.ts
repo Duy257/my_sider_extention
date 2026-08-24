@@ -6,10 +6,11 @@ let currentRoot: ReactDOM.Root | null = null;
 let currentContainer: HTMLElement | null = null;
 
 import type { ToolDevTrace } from "../core/devtools/types";
+import type { AiMessage } from "../core/ai/types";
 
 export interface MountOptions {
   position: { top: number; left: number };
-  prompt: string;
+  messages: AiMessage[];
   requestId: string;
   title: string;
   toolTrace?: ToolDevTrace;
@@ -30,7 +31,7 @@ export function mountFloatingWindow(options: MountOptions) {
 
   // Create shadow DOM for style isolation
   const shadow = container.attachShadow({ mode: "closed" });
-  
+
   // Inject custom keyframes for loading dots and fade animations
   const style = document.createElement("style");
   style.textContent = `
@@ -134,11 +135,11 @@ export function mountFloatingWindow(options: MountOptions) {
   root.render(
     React.createElement(FloatingWindow, {
       initialPosition: options.position,
-      prompt: options.prompt,
+      messages: options.messages,
       requestId: options.requestId,
       onClose: destroyFloatingWindow,
       toolTrace: options.toolTrace,
-    })
+    }),
   );
 
   currentRoot = root;

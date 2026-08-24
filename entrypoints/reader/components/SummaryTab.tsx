@@ -1,21 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
 import type { AiPortResponse } from "../../../src/core/messaging/types";
-import { buildUserChatMessages } from "../../../src/core/prompts/builders";
+import {
+  buildSummaryMessages,
+  type SummaryLength,
+} from "../../../src/core/prompts/builders";
 import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
-
-type SummaryLength = "short" | "medium" | "detailed";
 
 const SUMMARY_LABELS: Record<SummaryLength, string> = {
   short: "1 câu",
   medium: "1 đoạn",
   detailed: "Chi tiết",
-};
-
-const SUMMARY_INSTRUCTIONS: Record<SummaryLength, string> = {
-  short: "Tóm tắt bài viết này trong MỘT CÂU ngắn gọn nhất.",
-  medium: "Tóm tắt bài viết này trong MỘT ĐOẠN (3-5 câu), nêu ý chính.",
-  detailed: "Tóm tắt chi tiết bài viết này. Gồm: điểm chính, luận cứ, kết luận.",
 };
 
 export function SummaryTab({
@@ -38,72 +33,79 @@ export function SummaryTab({
   });
   const portRef = useRef<chrome.runtime.Port | null>(null);
 
-  const generateSummary = useCallback((sectionContext?: string) => {
-    if (streaming) return;
-    setStreaming(true);
-    setSummary("");
+  const generateSummary = useCallback(
+    (sectionContext?: string) => {
+      if (streaming) return;
+      setStreaming(true);
+      setSummary("");
 
-    const contentContext = sectionContext
-      ? `Đoạn sau đây:\n"""\n${sectionContext}\n"""`
-      : `Bài viết: "${title}"\nURL: ${url}\n\nNội dung:\n"""\n${pageContent}\n"""`;
+      const requestId = crypto.randomUUID();
+      const messages = buildSummaryMessages(
+        { title, url, pageContent, sectionContext },
+        length,
+      );
 
-    const userPrompt = `${SUMMARY_INSTRUCTIONS[length]}\n\n${contentContext}\n\nTrả lời bằng tiếng Việt.`;
-
-    const requestId = crypto.randomUUID();
-    const messages = buildUserChatMessages(userPrompt, []);
-
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-      portRef.current = port;
-    } catch {
-      setSummary("Không thể kết nối dịch vụ AI.");
-      setStreaming(false);
-      return;
-    }
-
-    port.onDisconnect.addListener(() => {
-      setStreaming(false);
-      portRef.current = null;
-    });
-
-    port.onMessage.addListener((message: AiPortResponse) => {
-      if (message.requestId !== requestId) return;
-      if (message.type === "AI_STREAM_CHUNK") {
-        setSummary((prev) => prev + message.delta);
-      }
-      if (message.type === "AI_STREAM_DONE" || message.type === "AI_STREAM_ERROR") {
+      let port: chrome.runtime.Port;
+      try {
+        port = chrome.runtime.connect({ name: AI_STREAM_PORT });
+        portRef.current = port;
+      } catch {
+        setSummary("Không thể kết nối dịch vụ AI.");
         setStreaming(false);
-        port.disconnect();
-        portRef.current = null;
+        return;
       }
-    });
 
-    port.postMessage({ type: "AI_CHAT_REQUEST", requestId, messages });
-  }, [length, pageContent, title, url, streaming]);
+      port.onDisconnect.addListener(() => {
+        setStreaming(false);
+        portRef.current = null;
+      });
+
+      port.onMessage.addListener((message: AiPortResponse) => {
+        if (message.requestId !== requestId) return;
+        if (message.type === "AI_STREAM_CHUNK") {
+          setSummary((prev) => prev + message.delta);
+        }
+        if (
+          message.type === "AI_STREAM_DONE" ||
+          message.type === "AI_STREAM_ERROR"
+        ) {
+          setStreaming(false);
+          port.disconnect();
+          portRef.current = null;
+        }
+      });
+
+      port.postMessage({ type: "AI_CHAT_REQUEST", requestId, messages });
+    },
+    [length, pageContent, title, url, streaming],
+  );
 
   useEffect(() => {
     return () => {
-      try { portRef.current?.disconnect(); } catch {}
+      try {
+        portRef.current?.disconnect();
+      } catch {}
     };
   }, []);
 
   return (
     <div className="flex flex-col gap-3 p-3.5">
       <div className="flex gap-1.5">
-        {(Object.entries(SUMMARY_LABELS) as [SummaryLength, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
-              length === key
-                ? "bg-primary/20 text-primary-light border border-primary/30"
-                : "text-stone-400 hover:text-stone-200 border border-stone-800 hover:border-stone-700"
-            }`}
-            onClick={() => setLength(key)}
-          >
-            {label}
-          </button>
-        ))}
+        {(Object.entries(SUMMARY_LABELS) as [SummaryLength, string][]).map(
+          ([key, label]) => (
+            <button
+              key={key}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
+                length === key
+                  ? "bg-primary/20 text-primary-light border border-primary/30"
+                  : "text-stone-400 hover:text-stone-200 border border-stone-800 hover:border-stone-700"
+              }`}
+              onClick={() => setLength(key)}
+            >
+              {label}
+            </button>
+          ),
+        )}
       </div>
 
       <button
@@ -114,8 +116,6 @@ export function SummaryTab({
         {streaming ? "Đang tóm tắt..." : "Tóm tắt toàn trang"}
       </button>
 
-
-
       {summary ? (
         <div className="rounded-xl border border-stone-850 bg-surface p-3.5 text-[13px] leading-relaxed">
           <MessageContent content={summary} />
@@ -123,9 +123,25 @@ export function SummaryTab({
         </div>
       ) : streaming ? (
         <div className="flex items-center gap-2 text-xs text-stone-400">
-          <svg className="h-4 w-4 animate-spinner" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.15" />
-            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          <svg
+            className="h-4 w-4 animate-spinner"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.15"
+            />
+            <path
+              d="M12 2a10 10 0 0 1 10 10"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
           </svg>
           Đang kết nối...
         </div>
