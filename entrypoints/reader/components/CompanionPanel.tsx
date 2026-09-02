@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EVENTS } from "../../../src/constants";
 import { SummaryTab } from "./SummaryTab";
 import { QATab } from "./QATab";
 
@@ -17,12 +18,12 @@ export function CompanionPanel({
   const [prefillQuestion, setPrefillQuestion] = useState("");
 
   useEffect(() => {
-    function handler(e: CustomEvent) {
+    function handler(e: CustomEvent<string>) {
       setActiveTab("qa");
-      setPrefillQuestion(e.detail);
+      setPrefillQuestion(e.detail ?? "");
     }
-    window.addEventListener("reader-ask-more" as any, handler as any);
-    return () => window.removeEventListener("reader-ask-more" as any, handler as any);
+    window.addEventListener(EVENTS.READER_ASK_MORE, handler);
+    return () => window.removeEventListener(EVENTS.READER_ASK_MORE, handler);
   }, []);
 
   return (

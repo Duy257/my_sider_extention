@@ -4,10 +4,35 @@ import { mapStreamError } from "./stream";
 import type { AiMessage } from "./types";
 import { readStreamDebugEvent } from "../devtools/stream";
 import type { TokenUsage } from "../devtools/types";
+import { TIMEOUTS } from "../../constants";
 
 // Thời gian timeout mặc định cho mọi request AI: 20 giây
-const REQUEST_TIMEOUT = 20_000;
-const FIRST_TOKEN_TIMEOUT = 30_000;
+const REQUEST_TIMEOUT = TIMEOUTS.AI_REQUEST;
+const FIRST_TOKEN_TIMEOUT = TIMEOUTS.AI_FIRST_TOKEN;
+
+// === KIỂU DỮ LIỆU RESPONSE TỪ PROVIDER (OpenAI-style) ===
+// Định nghĩa tường minh thay vì `any` để TypeScript kiểm soát được cấu trúc body.
+type ProviderErrorPayload = {
+  error?: { message?: string };
+};
+
+// Body của chat completion không stream (fetchCompletion / testConnection)
+type CompletionResponseBody = ProviderErrorPayload & {
+  choices?: Array<{ message?: { content?: unknown } }>;
+};
+
+// Một chunk SSE trong stream chat completion
+type ChatCompletionChunk = {
+  choices?: Array<{
+    delta?: { content?: unknown };
+    finish_reason?: unknown;
+  }>;
+};
+
+// Body của endpoint /models
+type ModelsResponseBody = ProviderErrorPayload & {
+  data?: Array<{ id?: unknown }>;
+};
 
 // Tạo headers HTTP cho request AI
 // - Nếu có API key: thêm header Authorization Bearer
@@ -156,7 +181,7 @@ export async function streamChatCompletion(input: {
       try {
         // Thử parse body lỗi để lấy message chi tiết từ provider
         const errorBody = await response.text();
-        const parsed = JSON.parse(errorBody);
+        const parsed = JSON.parse(errorBody) as ProviderErrorPayload | null;
         if (parsed?.error?.message) {
           errorMessage = parsed.error.message;
         }
@@ -229,7 +254,7 @@ export async function streamChatCompletion(input: {
 
         // Parse JSON và extract nội dung delta
         try {
-          const parsed = JSON.parse(data);
+          const parsed = JSON.parse(data) as ChatCompletionChunk;
           
           try {
             const debugEvent = readStreamDebugEvent(parsed);
@@ -246,7 +271,7 @@ export async function streamChatCompletion(input: {
           } catch {}
 
           const delta = parsed?.choices?.[0]?.delta?.content;
-          if (delta) {
+          if (typeof delta === "string" && delta) {
             markFirstActivity();
             try {
               input.callbacks.onDelta(delta);
@@ -321,15 +346,15 @@ export async function fetchCompletion(input: {
       let errorMessage = `HTTP ${response.status}.`;
       try {
         const text = await response.text();
-        const parsed = JSON.parse(text);
+        const parsed = JSON.parse(text) as ProviderErrorPayload | null;
         if (parsed?.error?.message) errorMessage = parsed.error.message;
       } catch {}
       return { ok: false, error: errorMessage };
     }
 
-    let body: any;
+    let body: CompletionResponseBody;
     try {
-      body = await response.json();
+      body = (await response.json()) as CompletionResponseBody;
     } catch {
       return { ok: false, error: "Provider returned a non-JSON response." };
     }
@@ -372,7 +397,7 @@ export async function testConnection(input: {
       try {
         const text = await response.text();
         try {
-          const parsed = JSON.parse(text);
+          const parsed = JSON.parse(text) as ProviderErrorPayload | null;
           if (parsed?.error?.message) errorMessage = parsed.error.message;
         } catch {
           // Nếu response không phải JSON, dùng text gốc (nếu ngắn)
@@ -383,9 +408,9 @@ export async function testConnection(input: {
     }
 
     // Parse JSON response
-    let body: any;
+    let body: CompletionResponseBody;
     try {
-      body = await response.json();
+      body = (await response.json()) as CompletionResponseBody;
     } catch {
       return {
         ok: false,
@@ -431,7 +456,7 @@ export async function fetchModels(input: {
       try {
         const text = await response.text();
         try {
-          const parsed = JSON.parse(text);
+          const parsed = JSON.parse(text) as ProviderErrorPayload | null;
           if (parsed?.error?.message) msg = parsed.error.message;
         } catch {
           if (text && text.length < 200) msg = text;
@@ -441,9 +466,9 @@ export async function fetchModels(input: {
     }
 
     // Parse JSON
-    let body: any;
+    let body: ModelsResponseBody;
     try {
-      body = await response.json();
+      body = (await response.json()) as ModelsResponseBody;
     } catch {
       return { error: "Provider returned a non-JSON models response." };
     }
@@ -453,12 +478,10 @@ export async function fetchModels(input: {
     const models: string[] = Array.from(
       new Set(
         (body?.data ?? [])
-          .map((model: { id?: unknown }) =>
-            typeof model.id === "string" ? model.id.trim() : "",
-          )
+          .map((model) => (typeof model.id === "string" ? model.id.trim() : ""))
           .filter(Boolean),
       ),
-    ).sort() as string[];
+    ).sort();
 
     if (models.length === 0)
       return { error: "No models returned by the provider." };

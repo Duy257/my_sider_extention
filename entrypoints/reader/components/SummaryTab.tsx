@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
-import type { AiPortResponse } from "../../../src/core/messaging/types";
+import { useCallback, useState } from "react";
+import { useAiStream } from "../../../src/hooks/useAiStream";
 import { buildUserChatMessages } from "../../../src/core/prompts/builders";
 import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
 
@@ -36,7 +35,16 @@ export function SummaryTab({
       ? headingMatches.map((h) => h.replace(/<[^>]+>/g, "").trim()).slice(0, 10)
       : [];
   });
-  const portRef = useRef<chrome.runtime.Port | null>(null);
+
+  const { start } = useAiStream({
+    onChunk: (delta) => setSummary((prev) => prev + delta),
+    onDone: () => setStreaming(false),
+    onError: (message) => {
+      setSummary(message);
+      setStreaming(false);
+    },
+    onDisconnect: () => setStreaming(false),
+  });
 
   const generateSummary = useCallback((sectionContext?: string) => {
     if (streaming) return;
@@ -52,41 +60,8 @@ export function SummaryTab({
     const requestId = crypto.randomUUID();
     const messages = buildUserChatMessages(userPrompt, []);
 
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-      portRef.current = port;
-    } catch {
-      setSummary("Không thể kết nối dịch vụ AI.");
-      setStreaming(false);
-      return;
-    }
-
-    port.onDisconnect.addListener(() => {
-      setStreaming(false);
-      portRef.current = null;
-    });
-
-    port.onMessage.addListener((message: AiPortResponse) => {
-      if (message.requestId !== requestId) return;
-      if (message.type === "AI_STREAM_CHUNK") {
-        setSummary((prev) => prev + message.delta);
-      }
-      if (message.type === "AI_STREAM_DONE" || message.type === "AI_STREAM_ERROR") {
-        setStreaming(false);
-        port.disconnect();
-        portRef.current = null;
-      }
-    });
-
-    port.postMessage({ type: "AI_CHAT_REQUEST", requestId, messages });
-  }, [length, pageContent, title, url, streaming]);
-
-  useEffect(() => {
-    return () => {
-      try { portRef.current?.disconnect(); } catch {}
-    };
-  }, []);
+    start({ requestId, messages });
+  }, [length, pageContent, title, url, streaming, start]);
 
   return (
     <div className="flex flex-col gap-3 p-3.5">

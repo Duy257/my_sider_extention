@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { AI_STREAM_PORT } from "../../core/messaging/ports";
+import { useAiStream } from "../../hooks/useAiStream";
 import { buildUserChatMessages } from "../../core/prompts/builders";
-import type { AiPortResponse } from "../../core/messaging/types";
 import type { WindowState, StreamState } from "./types";
 import { WindowHeader } from "./WindowHeader";
 import { FloatingChatMessage } from "./FloatingChatMessage";
@@ -102,79 +101,55 @@ export function FloatingWindow(props: {
     };
   }, [size]);
 
-  // AI stream via port
+  // AI stream via port (shared hook)
   const isDoneRef = useRef(false);
-  useEffect(() => {
-    isDoneRef.current = false;
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-    } catch {
-      setStreamState("error");
-      setErrorMessage("Không thể kết nối dịch vụ AI.");
-      return;
-    }
 
-    port.onDisconnect.addListener(() => {
+  const { start, stop } = useAiStream({
+    onChunk: (delta) => {
+      setStreamState("streaming");
+      setResponseContent((prev) => prev + delta);
+    },
+    onDebugStart: (trace) => setAiTrace(trace),
+    onReasoning: (delta) => setAiTrace((prev) => (prev ? appendReasoning(prev, delta) : prev)),
+    onDebugUpdate: ({ usage, finishReason }) =>
+      setAiTrace((prev) => (prev ? applyDebugUpdate(prev, { usage, finishReason }) : prev)),
+    onDone: (trace) => {
+      isDoneRef.current = true;
+      setStreamState("done");
+      if (trace) {
+        setAiTrace(trace);
+      }
+    },
+    onError: (message, trace) => {
+      isDoneRef.current = true;
+      setStreamState("error");
+      setErrorMessage(message);
+      if (trace) {
+        setAiTrace(trace);
+      }
+    },
+    onDisconnect: () => {
       if (chrome.runtime.lastError && !isDoneRef.current) {
         setStreamState("error");
         setErrorMessage(chrome.runtime.lastError.message || "Mất kết nối.");
       }
-    });
+    },
+  });
 
-    port.onMessage.addListener((message: AiPortResponse) => {
-      if (message.requestId !== props.requestId) return;
-
-      if (message.type === "AI_STREAM_CHUNK") {
-        setStreamState("streaming");
-        setResponseContent((prev) => prev + message.delta);
-      }
-
-      if (message.type === "AI_STREAM_DEBUG_START") {
-        setAiTrace(message.trace);
-      }
-
-      if (message.type === "AI_STREAM_REASONING") {
-        setAiTrace((prev) => prev ? appendReasoning(prev, message.delta) : prev);
-      }
-
-      if (message.type === "AI_STREAM_DEBUG_UPDATE") {
-        setAiTrace((prev) => prev ? applyDebugUpdate(prev, { usage: message.usage, finishReason: message.finishReason }) : prev);
-      }
-
-      if (message.type === "AI_STREAM_DONE") {
-        isDoneRef.current = true;
-        setStreamState("done");
-        if (message.trace) {
-          setAiTrace(message.trace);
-        }
-        port.disconnect();
-      }
-
-      if (message.type === "AI_STREAM_ERROR") {
-        isDoneRef.current = true;
-        setStreamState("error");
-        setErrorMessage(message.message);
-        if (message.trace) {
-          setAiTrace(message.trace);
-        }
-        port.disconnect();
-      }
-    });
-
+  useEffect(() => {
+    isDoneRef.current = false;
     const isDevModeActive = Boolean(props.toolTrace);
 
-    port.postMessage({
-      type: "AI_CHAT_REQUEST",
+    start({
       requestId: props.requestId,
       messages: buildUserChatMessages(props.prompt),
-      ...(isDevModeActive ? { devContext: { surface: "floating-window", feature: "chat" } } : {})
+      ...(isDevModeActive ? { devContext: { surface: "floating", feature: "chat" } } : {})
     });
 
     return () => {
-      try { port.disconnect(); } catch {}
+      stop();
     };
-  }, [props.requestId, props.prompt, props.toolTrace]);
+  }, [props.requestId, props.prompt, props.toolTrace, start, stop]);
 
   // Keyboard event handlers
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

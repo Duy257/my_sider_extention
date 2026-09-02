@@ -1,5 +1,6 @@
 import type { AiMessage } from "../ai/types";
 import type { SelectionAction } from "../selection/types";
+import { CHAT_SETTINGS } from "../../constants";
 
 export type PagePromptInput = {
   title: string;
@@ -13,7 +14,7 @@ export type ChatHistoryMessage = {
   content: string;
 };
 
-const MAX_CHAT_HISTORY_MESSAGES = 12;
+const MAX_CHAT_HISTORY_MESSAGES = CHAT_SETTINGS.MAX_HISTORY_MESSAGES;
 
 const SYSTEM_MESSAGE =
   "Bạn là trợ lý AI cá nhân, chuyên giúp đọc hiểu, viết lại, phân tích và biến nội dung trình duyệt thành hành động. Ưu tiên cấu trúc thực tế và các bước rõ ràng.";
