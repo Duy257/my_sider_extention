@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-07
+
+### Fixed
+- Fixed `Request is missing x-opencode-session and cannot be routed efficiently` error when using OpenCode provider (Console Go router).
+- Added automatic `x-opencode-session` header injection for all requests to OpenCode gateway (`opencode.ai`), including streaming chat completion, non-streaming completion, test connection, and model loading.
+
+### Added
+- Session lifecycle management (`sessionId`) across UI components: Sidepanel Chat (`useChatController`), Floating Selection Window (`FloatingWindow`), Reading Companion QA (`QATab`), Summary (`SummaryTab`), and Definition Popover (`DefinitionPopover`) to ensure backend routing affinity and enable prompt caching.
+- Runtime provider header resolver function (`getProviderHeaders`) for provider-specific headers.
+- Unit tests covering `x-opencode-session` header transmission, HTTP client safety net, and `sessionId` persistence across conversation turns and reset on "Chat mới" (New Chat).
+
 ## [0.3.1] - 2026-07-12
 
 ### Removed
