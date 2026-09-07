@@ -127,20 +127,34 @@ export function FloatingWindow(props: {
     [size],
   );
 
-  // AI stream via port
+  // AI stream via port (shared hook)
   const isDoneRef = useRef(false);
-  useEffect(() => {
-    isDoneRef.current = false;
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-    } catch {
-      setStreamState("error");
-      setErrorMessage("Không thể kết nối dịch vụ AI.");
-      return;
-    }
 
-    port.onDisconnect.addListener(() => {
+  const { start, stop } = useAiStream({
+    onChunk: (delta) => {
+      setStreamState("streaming");
+      setResponseContent((prev) => prev + delta);
+    },
+    onDebugStart: (trace) => setAiTrace(trace),
+    onReasoning: (delta) => setAiTrace((prev) => (prev ? appendReasoning(prev, delta) : prev)),
+    onDebugUpdate: ({ usage, finishReason }) =>
+      setAiTrace((prev) => (prev ? applyDebugUpdate(prev, { usage, finishReason }) : prev)),
+    onDone: (trace) => {
+      isDoneRef.current = true;
+      setStreamState("done");
+      if (trace) {
+        setAiTrace(trace);
+      }
+    },
+    onError: (message, trace) => {
+      isDoneRef.current = true;
+      setStreamState("error");
+      setErrorMessage(message);
+      if (trace) {
+        setAiTrace(trace);
+      }
+    },
+    onDisconnect: () => {
       if (chrome.runtime.lastError && !isDoneRef.current) {
         setStreamState("error");
         setErrorMessage(chrome.runtime.lastError.message || "Mất kết nối.");
@@ -196,10 +210,11 @@ export function FloatingWindow(props: {
       }
     });
 
+  useEffect(() => {
+    isDoneRef.current = false;
     const isDevModeActive = Boolean(props.toolTrace);
 
-    port.postMessage({
-      type: "AI_CHAT_REQUEST",
+    start({
       requestId: props.requestId,
       messages: props.messages,
       ...(isDevModeActive

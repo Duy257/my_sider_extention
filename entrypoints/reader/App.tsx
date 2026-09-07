@@ -7,6 +7,8 @@ import { ReaderView } from "./components/ReaderView";
 import type { SelectionInfo } from "./types";
 import { ToolTraceCard } from "../../src/components/devtools/ToolTraceCard";
 import type { ToolDevTrace } from "../../src/core/devtools/types";
+import type { ExtensionMessage } from "../../src/core/messaging/types";
+import { EVENTS, EXTRACTION_LIMITS } from "../../src/constants";
 
 type PageData = {
   title: string;
@@ -14,6 +16,15 @@ type PageData = {
   content: string;
   excerpt: string;
 };
+
+// Chỉ hai message này là App quan tâm; type guard thay cho `msg: any`
+type ReaderLoadMessage = Extract<ExtensionMessage, { type: "LOAD_READER_CONTENT" | "LOAD_READER_ERROR" }>;
+
+function isReaderLoadMessage(msg: unknown): msg is ReaderLoadMessage {
+  if (typeof msg !== "object" || msg === null) return false;
+  const type = (msg as { type?: unknown }).type;
+  return type === "LOAD_READER_CONTENT" || type === "LOAD_READER_ERROR";
+}
 
 export default function App() {
   const [pageData, setPageData] = useState<PageData | null>(null);
@@ -28,20 +39,21 @@ export default function App() {
     const requestId = params.get('requestId') || crypto.randomUUID();
     chrome.runtime.sendMessage({ type: "READER_CONTENT_READY", requestId }).catch(() => {});
 
-    function handleMessage(msg: any) {
-      if (msg.type === "LOAD_READER_CONTENT" && msg.requestId === requestId) {
+    function handleMessage(msg: unknown) {
+      if (!isReaderLoadMessage(msg) || msg.requestId !== requestId) return;
+
+      if (msg.type === "LOAD_READER_CONTENT") {
         setPageData({
-          title: msg.title || "",
-          url: msg.url || "",
-          content: msg.content || "",
-          excerpt: msg.excerpt || "",
+          title: typeof msg.title === "string" ? msg.title : "",
+          url: typeof msg.url === "string" ? msg.url : "",
+          content: typeof msg.content === "string" ? msg.content : "",
+          excerpt: typeof msg.excerpt === "string" ? msg.excerpt : "",
         });
         if (msg.toolTrace) {
           setToolTrace(msg.toolTrace);
         }
-      }
-      if (msg.type === "LOAD_READER_ERROR" && msg.requestId === requestId) {
-        setError(msg.error || "Không thể tải nội dung.");
+      } else {
+        setError(typeof msg.error === "string" && msg.error ? msg.error : "Không thể tải nội dung.");
         if (msg.toolTrace) {
           setToolTrace(msg.toolTrace);
         }
@@ -65,7 +77,11 @@ export default function App() {
       url: pageData?.url || "",
       summary: "",
       date: new Date().toISOString(),
-    }).then(() => setSaveStatus("saved")).catch(() => setSaveStatus("idle"));
+    }).then((response) => {
+      // Background trả về { ok: false; error } khi ghi storage thất bại
+      const failed = Boolean(response) && (response as { ok?: unknown }).ok === false;
+      setSaveStatus(failed ? "idle" : "saved");
+    }).catch(() => setSaveStatus("idle"));
   }, [saveStatus, pageData]);
 
   if (error) {
@@ -105,7 +121,7 @@ export default function App() {
         saving={saveStatus === "saving"}
         saved={saveStatus === "saved"}
       />
-      {pageData.content.length >= 40000 ? (
+      {pageData.content.length >= EXTRACTION_LIMITS.MAX_CONTEXT_CHARS ? (
         <div className="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-amber-900/30 bg-amber-950/20 px-3.5 py-2 text-xs text-amber-400">
           <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -131,7 +147,7 @@ export default function App() {
             selection={selection}
             onAskMore={(text) => {
               setSelection(null);
-              window.dispatchEvent(new CustomEvent("reader-ask-more", { detail: text }));
+              window.dispatchEvent(new CustomEvent<string>(EVENTS.READER_ASK_MORE, { detail: text }));
             }}
             onDismiss={() => setSelection(null)}
           />

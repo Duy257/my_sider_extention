@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
-import type { AiPortResponse } from "../../../src/core/messaging/types";
+import { useAiStream } from "../../../src/hooks/useAiStream";
 import { buildUserChatMessages } from "../../../src/core/prompts/builders";
 import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
 
@@ -25,8 +24,8 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
   const [messages, setMessages] = useState<QAMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const portRef = useRef<chrome.runtime.Port | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeAssistantIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (prefillQuestion) {
@@ -38,11 +37,28 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    return () => {
-      try { portRef.current?.disconnect(); } catch {}
-    };
-  }, []);
+  const { start } = useAiStream({
+    onChunk: (delta) => {
+      const id = activeAssistantIdRef.current;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id ? { ...m, content: m.content + delta } : m
+        )
+      );
+      setTimeout(scrollToBottom, 50);
+    },
+    onDone: () => setStreaming(false),
+    onError: (message) => {
+      const id = activeAssistantIdRef.current;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id ? { ...m, content: `Lỗi: ${message}` } : m
+        )
+      );
+      setStreaming(false);
+    },
+    onDisconnect: () => setStreaming(false),
+  });
 
   const sendQuestion = useCallback((question: string) => {
     if (!question.trim() || streaming) return;
@@ -51,6 +67,7 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
 
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
+    activeAssistantIdRef.current = assistantId;
 
     const contextPrompt = `Dựa trên nội dung bài viết sau, hãy trả lời câu hỏi của tôi.\n\nNội dung bài viết:\n"""\n${pageContent}\n"""\n\nCâu hỏi: ${question}\n\nTrả lời bằng tiếng Việt.`;
 
@@ -62,56 +79,8 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
 
     const messages = buildUserChatMessages(contextPrompt, []);
 
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-      portRef.current = port;
-    } catch {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId ? { ...m, content: "Không thể kết nối dịch vụ AI." } : m
-        )
-      );
-      setStreaming(false);
-      return;
-    }
-
-    port.onDisconnect.addListener(() => {
-      setStreaming(false);
-      portRef.current = null;
-    });
-
-    port.onMessage.addListener((message: AiPortResponse) => {
-      if (message.requestId !== requestId) return;
-      if (message.type === "AI_STREAM_CHUNK") {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, content: m.content + message.delta } : m
-          )
-        );
-        setTimeout(scrollToBottom, 50);
-      }
-      if (message.type === "AI_STREAM_DONE") {
-        setStreaming(false);
-        port.disconnect();
-        portRef.current = null;
-      }
-      if (message.type === "AI_STREAM_ERROR") {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: `Lỗi: ${message.message}` }
-              : m
-          )
-        );
-        setStreaming(false);
-        port.disconnect();
-        portRef.current = null;
-      }
-    });
-
-    port.postMessage({ type: "AI_CHAT_REQUEST", requestId, messages });
-  }, [pageContent, streaming]);
+    start({ requestId, messages });
+  }, [pageContent, streaming, start]);
 
   return (
     <div className="flex h-full flex-col">

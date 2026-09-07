@@ -1,8 +1,9 @@
 import { extractDomText } from "./fallback";
 import { extractReadableText } from "./readability";
 import type { ExtractedPageContent, ExtractionMethod } from "./types";
+import { EXTRACTION_LIMITS } from "../../constants";
 
-const MAX_PAGE_CONTEXT_CHARS = 40000;
+const MAX_PAGE_CONTEXT_CHARS = EXTRACTION_LIMITS.MAX_CONTEXT_CHARS;
 
 export function extractPageContent(url = window.location.href): ExtractedPageContent {
   const warnings: string[] = [];

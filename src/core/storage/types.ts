@@ -15,6 +15,9 @@ export type StorageEnvelope<T> = {
   data: T;
 };
 
+// Kết quả của thao tác ghi storage — bắt buộc caller xử lý lỗi thay vì bỏ im lặng
+export type StorageResult = { ok: true } | { ok: false; error: string };
+
 export type SavedResult = {
   id: string;
   title: string;

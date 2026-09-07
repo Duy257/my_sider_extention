@@ -23,18 +23,45 @@ import {
   failToolTrace,
 } from "../src/core/devtools/background-trace";
 
+// === CACHE SETTINGS (event-driven invalidation + single-flight) ===
+// - TTL ngắn chỉ là phương án dự phòng.
+// - Mọi lần ghi settings (storage.onChanged) hoặc nhận SETTINGS_UPDATED đều
+//   vô hiệu hóa cache ngay lập tức → không dùng stale config.
+// - generation counter đảm bảo kết quả của một lần load đang chạy (in-flight)
+//   KHÔNG bị ghi vào cache nếu cache đã bị invalidate trong lúc load.
 let settingsCache: { settings: Settings; timestamp: number } | null = null;
-const SETTINGS_CACHE_TTL = 5_000; // 5 seconds
-const READER_HANDOFF_TIMEOUT_MS = 10_000;
+let settingsCacheGeneration = 0;
+let settingsCacheInFlight: Promise<Settings> | null = null;
+
+function invalidateSettingsCache() {
+  settingsCache = null;
+  settingsCacheGeneration += 1;
+  settingsCacheInFlight = null;
+}
 
 async function getCachedSettings(): Promise<Settings> {
   const now = Date.now();
   if (settingsCache && now - settingsCache.timestamp < SETTINGS_CACHE_TTL) {
     return settingsCache.settings;
   }
-  const settings = await getSettings();
-  settingsCache = { settings, timestamp: now };
-  return settings;
+
+  // Single-flight: nhiều request đồng thời chia sẻ một lần load duy nhất
+  if (!settingsCacheInFlight) {
+    const generation = settingsCacheGeneration;
+    settingsCacheInFlight = getSettings()
+      .then((settings) => {
+        if (generation === settingsCacheGeneration) {
+          settingsCache = { settings, timestamp: Date.now() };
+        }
+        return settings;
+      })
+      .finally(() => {
+        if (generation === settingsCacheGeneration) {
+          settingsCacheInFlight = null;
+        }
+      });
+  }
+  return settingsCacheInFlight;
 }
 
 async function getActiveTab() {
@@ -73,6 +100,14 @@ export default defineBackground(() => {
       title: "Đọc với AI",
       contexts: ["page"],
     });
+  });
+
+  // Vô hiệu hóa cache settings ngay khi dữ liệu settings bị ghi lại
+  // (bao trùm cả trường hợp settings được lưu trực tiếp qua chrome.storage)
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && changes[STORAGE_KEYS.SETTINGS]) {
+      invalidateSettingsCache();
+    }
   });
 
   chrome.runtime.onConnect.addListener((port) => {
@@ -484,7 +519,7 @@ export default defineBackground(() => {
                 })
                 .catch(() => undefined);
             }
-          }, READER_HANDOFF_TIMEOUT_MS);
+          }, TIMEOUTS.READER_HANDOFF);
 
           readerReady = (msg: any) => {
             if (
@@ -549,7 +584,7 @@ export default defineBackground(() => {
     }
 
     if (message.type === "SETTINGS_UPDATED") {
-      settingsCache = null;
+      invalidateSettingsCache();
       sendResponse({ ok: true });
       return true;
     }

@@ -88,6 +88,37 @@ export function migrateSettingsEnvelope(value: unknown, fallback: Settings): Sto
   };
 }
 
+// === MIGRATION DỮ LIỆU THEO TỪNG BƯỚC VERSION ===
+// Khi thay đổi shape dữ liệu của promptTemplates/savedResults, tăng CURRENT_SCHEMA_VERSION
+// và đăng ký một migrator chuyển data từ version cũ sang version mới:
+//
+//   registerStorageDataMigration(5, (data) => transformV5DataToV6(data));
+//
+// Migrator được đặt khóa theo version NGUỒN của data và được áp dụng nối tiếp
+// cho tới version đích, đảm bảo không bỏ sót bước chuyển đổi nào.
+export type StorageDataMigrator = (data: unknown) => unknown;
+
+const STORAGE_DATA_MIGRATIONS: Record<number, StorageDataMigrator> = {};
+
+export function registerStorageDataMigration(fromVersion: number, migrator: StorageDataMigrator): void {
+  STORAGE_DATA_MIGRATIONS[fromVersion] = migrator;
+}
+
+export function hasStorageDataMigration(fromVersion: number): boolean {
+  return fromVersion in STORAGE_DATA_MIGRATIONS;
+}
+
+function applyStorageDataMigrations(data: unknown, fromVersion: number, targetVersion: number): unknown {
+  let current = data;
+  for (let version = fromVersion; version < targetVersion; version += 1) {
+    const migrator = STORAGE_DATA_MIGRATIONS[version];
+    if (migrator) {
+      current = migrator(current);
+    }
+  }
+  return current;
+}
+
 export function migrateStorageEnvelope<T>(
   value: T | StorageEnvelope<T> | undefined,
   schemaVersion = CURRENT_SCHEMA_VERSION,
@@ -95,10 +126,16 @@ export function migrateStorageEnvelope<T>(
 ): StorageEnvelope<T> {
   if (value !== null && typeof value === "object" && "schemaVersion" in value && "data" in value) {
     const envelope = value as StorageEnvelope<T>;
-    if (envelope.schemaVersion !== schemaVersion) {
-      return { schemaVersion, data: envelope.data };
+    const storedVersion = envelope.schemaVersion;
+
+    // Nâng version từng bước qua các migration đã đăng ký (nếu có)
+    if (typeof storedVersion === "number" && storedVersion < schemaVersion) {
+      const data = applyStorageDataMigrations(envelope.data, storedVersion, schemaVersion);
+      return { schemaVersion, data: data as T };
     }
-    return envelope;
+
+    // Data mới hơn code (downgrade) hoặc đúng version: giữ nguyên data, chỉ tái gắn version
+    return { schemaVersion, data: envelope.data };
   }
 
   if (value === undefined) {

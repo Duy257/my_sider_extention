@@ -1,5 +1,6 @@
 import type { AiMessage } from "../ai/types";
 import type { SelectionAction } from "../selection/types";
+import { CHAT_SETTINGS } from "../../constants";
 
 export type ChatHistoryMessage = {
   role: "user" | "assistant";

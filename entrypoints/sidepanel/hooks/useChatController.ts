@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
-import type { AiPortResponse } from "../../../src/core/messaging/types";
+import { useAiStream } from "../../../src/hooks/useAiStream";
 import { buildUserChatMessages } from "../../../src/core/prompts/builders";
 import type { AiDevContext, AiDevTrace, ToolDevTrace } from "../../../src/core/devtools/types";
 import { appendReasoning, applyDebugUpdate } from "../../../src/core/devtools/trace-reducer";
+import { CHAT_SETTINGS } from "../../../src/constants";
 
 export type ChatMessageItem = {
   kind: "message";
@@ -41,13 +41,12 @@ export type UseChatControllerResult = {
   setMessages: (next: ChatTimelineItem[] | ((current: ChatTimelineItem[]) => ChatTimelineItem[])) => void;
 };
 
-export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseChatControllerOptions): UseChatControllerResult {
+export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.ERROR_DISMISS_MS }: UseChatControllerOptions): UseChatControllerResult {
   const [messages, setMessagesState] = useState<ChatTimelineItem[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamingPhase, setStreamingPhase] = useState<StreamingPhase>("idle");
   const [error, setErrorState] = useState("");
   const messagesRef = useRef<ChatTimelineItem[]>([]);
-  const portRef = useRef<chrome.runtime.Port | null>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamingRef = useRef(false);
 
@@ -77,7 +76,6 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     streamingRef.current = false;
     setStreaming(false);
     setStreamingPhase("idle");
-    portRef.current = null;
   }
 
   const startFlushTimer = (id: string) => {
@@ -106,7 +104,7 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
           return item;
         })
       );
-    }, 100);
+    }, CHAT_SETTINGS.STREAM_FLUSH_MS);
   };
 
   const stopFlushTimerAndFlush = (id: string | null, finalTrace?: AiDevTrace) => {
@@ -143,10 +141,61 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     );
   };
 
+  // Định tuyến stream events qua hook dùng chung; controller chỉ lo buffer & state hiển thị
+  const { start: startAiStream, stop: stopAiStream } = useAiStream({
+    onConnecting: () => setStreamingPhase("connecting"),
+    onFirstToken: () => setStreamingPhase("streaming"),
+    onChunk: (delta) => {
+      setStreamingPhase("streaming");
+      contentBufferRef.current += delta;
+      const id = activeAssistantIdRef.current;
+      if (id) startFlushTimer(id);
+    },
+    onReasoning: (delta) => {
+      reasoningBufferRef.current += delta;
+      const id = activeAssistantIdRef.current;
+      if (id) startFlushTimer(id);
+    },
+    onDebugStart: (trace) => {
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === activeAssistantIdRef.current && item.kind === "message" ? { ...item, debug: trace } : item
+        )
+      );
+    },
+    onDebugUpdate: ({ usage, finishReason }) => {
+      setMessages((current) =>
+        current.map((item) => {
+          if (item.id === activeAssistantIdRef.current && item.kind === "message" && item.debug) {
+            return {
+              ...item,
+              debug: applyDebugUpdate(item.debug, { usage, finishReason })
+            };
+          }
+          return item;
+        })
+      );
+    },
+    onDone: (finalTrace) => {
+      stopFlushTimerAndFlush(activeAssistantIdRef.current, finalTrace);
+      resetStreamState();
+    },
+    onError: (message) => {
+      stopFlushTimerAndFlush(activeAssistantIdRef.current);
+      resetStreamState();
+      setError(message);
+    },
+    onDisconnect: () => {
+      stopFlushTimerAndFlush(activeAssistantIdRef.current);
+      resetStreamState();
+      if (chrome.runtime.lastError) {
+        setError(chrome.runtime.lastError.message || "Mất kết nối.");
+      }
+    }
+  });
+
   function cancelStream() {
-    try {
-      portRef.current?.disconnect();
-    } catch {}
+    stopAiStream();
     stopFlushTimerAndFlush(activeAssistantIdRef.current);
     resetStreamState();
   }
@@ -188,84 +237,7 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
       { kind: "message", id: assistantId, role: "assistant", content: "" }
     ]);
 
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-      portRef.current = port;
-    } catch {
-      resetStreamState();
-      setError("Không thể kết nối dịch vụ AI.");
-      return;
-    }
-
-    port.onDisconnect.addListener(() => {
-      stopFlushTimerAndFlush(activeAssistantIdRef.current);
-      resetStreamState();
-      if (chrome.runtime.lastError) {
-        setError(chrome.runtime.lastError.message || "Mất kết nối.");
-      }
-    });
-
-    port.onMessage.addListener((message: AiPortResponse) => {
-      if (message.requestId !== requestId) return;
-
-      if (message.type === "AI_STREAM_CONNECTING") {
-        setStreamingPhase("connecting");
-      }
-
-      if (message.type === "AI_STREAM_FIRST_TOKEN") {
-        setStreamingPhase("streaming");
-      }
-
-      if (message.type === "AI_STREAM_DEBUG_START") {
-        setMessages((current) =>
-          current.map((item) =>
-            item.id === assistantId && item.kind === "message" ? { ...item, debug: message.trace } : item
-          )
-        );
-      }
-
-      if (message.type === "AI_STREAM_REASONING") {
-        reasoningBufferRef.current += message.delta;
-        startFlushTimer(assistantId);
-      }
-
-      if (message.type === "AI_STREAM_CHUNK") {
-        setStreamingPhase("streaming");
-        contentBufferRef.current += message.delta;
-        startFlushTimer(assistantId);
-      }
-
-      if (message.type === "AI_STREAM_DEBUG_UPDATE") {
-        setMessages((current) =>
-          current.map((item) => {
-            if (item.id === assistantId && item.kind === "message" && item.debug) {
-              return {
-                ...item,
-                debug: applyDebugUpdate(item.debug, { usage: message.usage, finishReason: message.finishReason })
-              };
-            }
-            return item;
-          })
-        );
-      }
-
-      if (message.type === "AI_STREAM_DONE") {
-        stopFlushTimerAndFlush(assistantId, message.trace);
-        resetStreamState();
-        port.disconnect();
-      }
-
-      if (message.type === "AI_STREAM_ERROR") {
-        stopFlushTimerAndFlush(assistantId, message.trace);
-        resetStreamState();
-        setError(message.message);
-        port.disconnect();
-      }
-    });
-
-    port.postMessage({
-      type: "AI_CHAT_REQUEST",
+    startAiStream({
       requestId,
       messages: providerMessages,
       ...(thinkingMode ? { thinkingMode } : {}),
@@ -277,9 +249,6 @@ export function useChatController({ canSend, autoDismissErrorMs = 8000 }: UseCha
     return () => {
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
       if (flushTimerRef.current) clearInterval(flushTimerRef.current);
-      try {
-        portRef.current?.disconnect();
-      } catch {}
     };
   }, []);
 

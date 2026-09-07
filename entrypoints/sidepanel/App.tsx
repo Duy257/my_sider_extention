@@ -19,6 +19,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
   const [savedResults, setSavedResultsState] = useState<SavedResult[]>([]);
+  const [storageError, setStorageError] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const provider = settings ? getProvider(settings.providerId) : undefined;
@@ -50,13 +51,19 @@ export default function App() {
 
   async function updateSettings(next: Settings) {
     setSettings(next);
-    await saveSettings(next);
+    const result = await saveSettings(next);
+    if (!result.ok) {
+      setStorageError(`Không thể lưu cài đặt: ${result.error}`);
+    }
     chrome.runtime.sendMessage({ type: "SETTINGS_UPDATED" }).catch(() => undefined);
   }
 
   async function updatePrompts(next: PromptTemplate[]) {
     setPrompts(next);
-    await savePromptTemplates(next);
+    const result = await savePromptTemplates(next);
+    if (!result.ok) {
+      setStorageError(`Không thể lưu prompt: ${result.error}`);
+    }
   }
 
   sendPromptRef.current = chat.sendPrompt;
@@ -86,7 +93,11 @@ export default function App() {
     };
     setSavedResultsState((prev) => {
       const updated = [newResult, ...prev];
-      saveSavedResults(updated);
+      saveSavedResults(updated).then((result) => {
+        if (!result.ok) {
+          setStorageError(`Không thể lưu kết quả: ${result.error}`);
+        }
+      });
       return updated;
     });
   }
@@ -123,12 +134,28 @@ export default function App() {
         </div>
       ) : null}
 
+      {storageError ? (
+        <div className="mx-3 mt-3 flex items-center gap-2.5 rounded-xl border border-amber-900/30 bg-amber-950/20 px-3.5 py-2.5 text-xs text-amber-400 animate-fade-in-up">
+          <span className="flex-1 font-medium">{storageError}</span>
+          <button
+            onClick={() => setStorageError("")}
+            className="text-amber-400/70 hover:text-amber-300 transition-colors text-sm font-bold px-1"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
       {view === "settings" ? <SettingsPanel settings={settings} onChange={updateSettings} /> : null}
       {view === "prompts" ? <PromptManager prompts={prompts} onChange={updatePrompts} /> : null}
       {view === "saved" ? <SavedResults results={savedResults} onDelete={(id) => {
         setSavedResultsState((prev) => {
           const updated = prev.filter((item) => item.id !== id);
-          saveSavedResults(updated);
+          saveSavedResults(updated).then((result) => {
+            if (!result.ok) {
+              setStorageError(`Không thể cập nhật kết quả đã lưu: ${result.error}`);
+            }
+          });
           return updated;
         });
       }} /> : null}

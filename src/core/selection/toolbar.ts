@@ -1,8 +1,9 @@
 import { SELECTION_ACTIONS } from "./actions";
 import type { SelectionAction } from "./types";
+import { SELECTION_LIMITS } from "../../constants";
 
-const MIN_SELECTION_CHARS = 3;
-const MAX_SELECTION_CHARS = 20000;
+const MIN_SELECTION_CHARS = SELECTION_LIMITS.MIN_CHARS;
+const MAX_SELECTION_CHARS = SELECTION_LIMITS.MAX_CHARS;
 
 export function isSelectionLengthAllowed(text: string): boolean {
   const length = text.trim().length;

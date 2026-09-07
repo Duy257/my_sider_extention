@@ -31,7 +31,16 @@ export function SummaryTab({
       ? headingMatches.map((h) => h.replace(/<[^>]+>/g, "").trim()).slice(0, 10)
       : [];
   });
-  const portRef = useRef<chrome.runtime.Port | null>(null);
+
+  const { start } = useAiStream({
+    onChunk: (delta) => setSummary((prev) => prev + delta),
+    onDone: () => setStreaming(false),
+    onError: (message) => {
+      setSummary(message);
+      setStreaming(false);
+    },
+    onDisconnect: () => setStreaming(false),
+  });
 
   const generateSummary = useCallback(
     (sectionContext?: string) => {

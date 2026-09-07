@@ -1,19 +1,6 @@
 import { useCallback, useRef } from "react";
+import { sanitizeHtml } from "../../../src/core/security/sanitize-html";
 import type { SelectionInfo } from "../types";
-
-function sanitizeHtml(html: string): string {
-  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
-  const div = doc.body.firstElementChild as HTMLElement | null;
-  if (!div) return html;
-  div.querySelectorAll('*').forEach((el) => {
-    for (const attr of el.attributes) {
-      if (attr.name.startsWith('on')) {
-        el.removeAttribute(attr.name);
-      }
-    }
-  });
-  return div.innerHTML;
-}
 
 type ReaderViewProps = {
   content: string;
