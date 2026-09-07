@@ -12,4 +12,13 @@ export const DEV_COPY = {
   copied: "Đã sao chép",
   tool: "TOOL",
   status: "STATUS",
+  metadataLabels: {
+    extractor: "Trình trích xuất",
+    contentChars: "Số ký tự",
+    textLength: "Độ dài văn bản",
+    warnings: "Cảnh báo",
+    action: "Hành động",
+    url: "URL",
+    title: "Tiêu đề",
+  } as Record<string, string>,
 } as const;

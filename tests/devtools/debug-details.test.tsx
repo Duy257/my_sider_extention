@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DebugDetails } from "../../src/components/devtools/DebugDetails";
 import type { AiDevTrace } from "../../src/core/devtools/types";
@@ -29,18 +29,45 @@ describe("DebugDetails component", () => {
     expect(screen.getByText(/300 tok/i)).toBeInTheDocument();
   });
 
-  it("opens via button with aria-expanded", () => {
+  it("opens via button with aria-expanded and correct ARIA region attributes", () => {
     render(<DebugDetails trace={baseTrace} />);
+    const region = screen.getByRole("region", { name: "AI dev trace" });
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveAttribute("aria-live", "polite");
+
     const button = screen.getByRole("button");
     
     // Collapsed initially (unless streaming, but here status is success)
     expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).toHaveAttribute("aria-controls", `debug-details-${baseTrace.requestId}`);
+    expect(document.getElementById(`debug-details-${baseTrace.requestId}`)).not.toBeInTheDocument();
     expect(screen.queryByText(DEV_COPY.request)).not.toBeInTheDocument();
 
     // Click to expand
     fireEvent.click(button);
     expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById(`debug-details-${baseTrace.requestId}`)).toBeInTheDocument();
     expect(screen.getByText(DEV_COPY.request)).toBeInTheDocument();
+  });
+
+  it("renders effectiveRequestParams formatted with 2-space JSON indentation", () => {
+    const traceWithComplexParams: AiDevTrace = {
+      ...baseTrace,
+      effectiveRequestParams: {
+        reasoning_effort: "high",
+        max_tokens: 4096,
+        temperature: 0.7
+      }
+    };
+    const { container } = render(<DebugDetails trace={traceWithComplexParams} />);
+    fireEvent.click(screen.getByRole("button"));
+
+    const expectedJson = JSON.stringify(traceWithComplexParams.effectiveRequestParams, null, 2);
+    const preElements = container.querySelectorAll("pre");
+    // Find pre element containing the formatted params
+    const paramsPre = Array.from(preElements).find((pre) => pre.textContent === expectedJson);
+    expect(paramsPre).toBeDefined();
+    expect(paramsPre?.textContent).toBe(expectedJson);
   });
 
   it("reasoning becomes visible and copies reasoning text to clipboard", async () => {
@@ -66,6 +93,72 @@ describe("DebugDetails component", () => {
     expect(await screen.findByText(DEV_COPY.copied)).toBeInTheDocument();
 
     vi.unstubAllGlobals();
+  });
+
+  it("cleans up copy timer on unmount and clears previous timer on consecutive copies", async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        writeText: mockWriteText
+      }
+    });
+
+    const { unmount } = render(<DebugDetails trace={baseTrace} />);
+    fireEvent.click(screen.getByRole("button"));
+
+    const copyBtn = screen.getByText(DEV_COPY.copyThinking);
+    // First copy
+    await act(async () => {
+      fireEvent.click(copyBtn);
+      await Promise.resolve();
+    });
+
+    // Second copy clears previous timer before setting new timer
+    await act(async () => {
+      fireEvent.click(copyBtn);
+      await Promise.resolve();
+    });
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+
+    // Unmount clears active timer
+    unmount();
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(2);
+
+    clearTimeoutSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("auto-expands reasoning on initial stream start but respects user manual collapse during ongoing stream", () => {
+    const streamingTrace: AiDevTrace = {
+      ...baseTrace,
+      status: "pending",
+      thinking: { state: "returned", content: "Initial thinking token..." }
+    };
+
+    const { rerender } = render(<DebugDetails trace={streamingTrace} />);
+    const toggleBtn = screen.getByRole("button", { name: new RegExp(DEV_COPY.summaryPrefix) });
+
+    // Auto-expanded on initial streaming of reasoning
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Initial thinking token...")).toBeInTheDocument();
+
+    // User manually closes section
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+
+    // Next streaming delta arrives
+    rerender(
+      <DebugDetails
+        trace={{
+          ...streamingTrace,
+          thinking: { state: "returned", content: "Initial thinking token... more thoughts" }
+        }}
+      />
+    );
+
+    // Remains collapsed - does NOT force re-open on streaming deltas
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
   });
 
   it("uses thinkingNotReturned copy when reasoning is absent", () => {

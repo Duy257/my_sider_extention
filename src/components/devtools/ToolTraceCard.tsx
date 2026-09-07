@@ -7,6 +7,12 @@ type ToolTraceCardProps = {
   compact?: boolean;
 };
 
+type Scalar = string | number | boolean;
+function isScalar(v: unknown): v is Scalar {
+  const t = typeof v;
+  return t === "string" || t === "number" || t === "boolean";
+}
+
 export function ToolTraceCard({ trace, compact }: ToolTraceCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -15,20 +21,20 @@ export function ToolTraceCard({ trace, compact }: ToolTraceCardProps) {
     return `${trace.finishedAt - trace.startedAt} ms`;
   };
 
-  const getMetadataEntries = () => {
-    return Object.entries(trace.metadata).filter(([_, value]) => {
-      const type = typeof value;
-      return type === "string" || type === "number" || type === "boolean";
-    }) as [string, string | number | boolean][];
-  };
-
-  const metadataEntries = getMetadataEntries();
+  const metadataEntries = Object.entries(trace.metadata ?? {}).filter(
+    (entry): entry is [string, Scalar] => isScalar(entry[1])
+  );
 
   return (
-    <section className={`rounded-xl border border-stone-850 bg-stone-950 font-mono text-[11px] text-stone-400 ${compact ? "p-2" : "p-3"}`}>
+    <section
+      role="region"
+      aria-label="Tool trace"
+      className={`rounded-xl border border-stone-850 bg-stone-950 font-mono text-[11px] text-stone-400 ${compact ? "p-2" : "p-3"}`}
+    >
       <button
         type="button"
         aria-expanded={expanded}
+        aria-controls={`tool-trace-${trace.requestId}`}
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center justify-between font-semibold tracking-wide text-stone-300 outline-none hover:text-violet-400 transition-colors cursor-pointer"
       >
@@ -46,13 +52,19 @@ export function ToolTraceCard({ trace, compact }: ToolTraceCardProps) {
       </button>
 
       {expanded && (
-        <div className="mt-3.5 space-y-2.5 border-t border-stone-900 pt-3">
+        <div
+          id={`tool-trace-${trace.requestId}`}
+          className="mt-3.5 space-y-2.5 border-t border-stone-900 pt-3"
+        >
           <div className="space-y-0.5 text-stone-400 pl-2">
-            {metadataEntries.map(([key, value]) => (
-              <div key={key}>
-                {key}: <span className="text-stone-300">{String(value)}</span>
-              </div>
-            ))}
+            {metadataEntries.map(([key, value]) => {
+              const label = DEV_COPY.metadataLabels[key] ?? key;
+              return (
+                <div key={key}>
+                  {label}: <span className="text-stone-300">{String(value)}</span>
+                </div>
+              );
+            })}
             <div>
               {DEV_COPY.status.toLowerCase()}: <span className={`font-semibold ${
                 trace.status === "success" ? "text-emerald-400" :

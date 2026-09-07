@@ -1,2 +1,2 @@
 export type WindowState = "default" | "minimized" | "maximized";
-export type StreamState = "idle" | "loading" | "streaming" | "done" | "error";
+export type StreamState = "loading" | "streaming" | "done" | "error";

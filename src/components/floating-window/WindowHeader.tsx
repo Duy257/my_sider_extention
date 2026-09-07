@@ -1,5 +1,5 @@
 import React from "react";
-import type { WindowState } from "./types";
+import type { WindowState, StreamState } from "./types";
 
 const styles = {
   header: (dragging: boolean): React.CSSProperties => ({
@@ -41,12 +41,12 @@ const styles = {
     display: "flex",
     gap: "4px",
   },
-  controlBtn: (hover: boolean): React.CSSProperties => ({
+  controlBtn: {
     width: "22px",
     height: "22px",
     borderRadius: "6px",
     border: "none",
-    background: hover ? "#3C3833" : "transparent",
+    background: "transparent",
     color: "#A8A29E",
     cursor: "pointer",
     display: "flex",
@@ -54,10 +54,10 @@ const styles = {
     justifyContent: "center",
     fontSize: "12px",
     fontWeight: 700,
-    transition: "background 0.15s",
     padding: 0,
     lineHeight: 1,
-  }),
+    transition: "background 0.15s, color 0.15s",
+  } as React.CSSProperties,
 };
 
 function ControlButton(props: {
@@ -65,37 +65,63 @@ function ControlButton(props: {
   onClick: (e: React.MouseEvent) => void;
   children: React.ReactNode;
 }) {
-  const [hover, setHover] = React.useState(false);
   return (
     <button
-      style={styles.controlBtn(hover)}
+      style={styles.controlBtn}
+      className="w-[22px] h-[22px] rounded-md border-0 bg-transparent text-stone-400 hover:bg-stone-700/60 hover:text-stone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 cursor-pointer flex items-center justify-center text-xs font-bold transition-colors duration-150 p-0 leading-none"
       data-window-control="true"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       onClick={props.onClick}
       title={props.label}
+      aria-label={props.label}
     >
       {props.children}
     </button>
   );
 }
 
-export function WindowHeader(props: {
+export function getHeaderTitle(
+  windowState: WindowState,
+  streamState: StreamState | undefined,
+  defaultTitle: string,
+): string {
+  if (windowState === "minimized") {
+    return "AI";
+  }
+  if (streamState === "loading") {
+    return "AI đang kết nối...";
+  }
+  if (streamState === "streaming") {
+    return "AI đang trả lời...";
+  }
+  if (streamState === "error") {
+    return "Lỗi phản hồi";
+  }
+  return defaultTitle;
+}
+
+export interface WindowHeaderProps {
   title: string;
   windowState: WindowState;
+  streamState?: StreamState;
   dragging: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
   onMinimize: () => void;
   onMaximize: () => void;
   onClose: () => void;
-}) {
+}
+
+export function WindowHeader(props: WindowHeaderProps) {
+  const displayTitle = getHeaderTitle(
+    props.windowState,
+    props.streamState,
+    props.title,
+  );
+
   return (
     <div style={styles.header(props.dragging)} onMouseDown={props.onMouseDown}>
       <div style={styles.titleGroup}>
         <div style={styles.icon}>AI</div>
-        <span style={styles.title}>
-          {props.windowState === "minimized" ? "AI" : props.title}
-        </span>
+        <span style={styles.title}>{displayTitle}</span>
       </div>
       <div style={styles.controls}>
         <ControlButton label="Thu nhỏ" onClick={props.onMinimize}>
