@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AI_STREAM_PORT } from "../../../src/core/messaging/ports";
-import type { AiPortResponse } from "../../../src/core/messaging/types";
+import { useCallback, useRef, useState } from "react";
+import { useAiStream } from "../../../src/hooks/useAiStream";
 import {
   buildSummaryMessages,
   type SummaryLength,
@@ -25,6 +24,7 @@ export function SummaryTab({
   const [length, setLength] = useState<SummaryLength>("short");
   const [summary, setSummary] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
   const [sections] = useState<string[]>(() => {
     const headingMatches = pageContent.match(/<h[12][^>]*>([^<]+)<\/h[12]>/gi);
     return headingMatches
@@ -54,48 +54,10 @@ export function SummaryTab({
         length,
       );
 
-      let port: chrome.runtime.Port;
-      try {
-        port = chrome.runtime.connect({ name: AI_STREAM_PORT });
-        portRef.current = port;
-      } catch {
-        setSummary("Không thể kết nối dịch vụ AI.");
-        setStreaming(false);
-        return;
-      }
-
-      port.onDisconnect.addListener(() => {
-        setStreaming(false);
-        portRef.current = null;
-      });
-
-      port.onMessage.addListener((message: AiPortResponse) => {
-        if (message.requestId !== requestId) return;
-        if (message.type === "AI_STREAM_CHUNK") {
-          setSummary((prev) => prev + message.delta);
-        }
-        if (
-          message.type === "AI_STREAM_DONE" ||
-          message.type === "AI_STREAM_ERROR"
-        ) {
-          setStreaming(false);
-          port.disconnect();
-          portRef.current = null;
-        }
-      });
-
-      port.postMessage({ type: "AI_CHAT_REQUEST", requestId, messages });
+      start({ requestId, sessionId: sessionIdRef.current, messages });
     },
-    [length, pageContent, title, url, streaming],
+    [length, pageContent, title, url, streaming, start],
   );
-
-  useEffect(() => {
-    return () => {
-      try {
-        portRef.current?.disconnect();
-      } catch {}
-    };
-  }, []);
 
   return (
     <div className="flex flex-col gap-3 p-3.5">

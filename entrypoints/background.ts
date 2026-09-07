@@ -7,6 +7,7 @@ import {
   getThinkingParams,
   resolveProviderRuntimeConfig,
   getDevStreamParams,
+  getProviderHeaders,
 } from "../src/core/ai/runtime";
 import { AI_STREAM_PORT } from "../src/core/messaging/ports";
 import type {
@@ -22,6 +23,7 @@ import {
   completeToolTrace,
   failToolTrace,
 } from "../src/core/devtools/background-trace";
+import { STORAGE_KEYS, TIMEOUTS } from "../src/constants";
 
 // === CACHE SETTINGS (event-driven invalidation + single-flight) ===
 // - TTL ngắn chỉ là phương án dự phòng.
@@ -41,7 +43,7 @@ function invalidateSettingsCache() {
 
 async function getCachedSettings(): Promise<Settings> {
   const now = Date.now();
-  if (settingsCache && now - settingsCache.timestamp < SETTINGS_CACHE_TTL) {
+  if (settingsCache && now - settingsCache.timestamp < TIMEOUTS.SETTINGS_CACHE_TTL) {
     return settingsCache.settings;
   }
 
@@ -178,12 +180,19 @@ export default defineBackground(() => {
           });
         }
 
+        const providerHeaders = getProviderHeaders(
+          runtime.config.providerId,
+          message.sessionId,
+        );
+
         await streamChatCompletion({
           baseUrl: runtime.config.baseUrl,
           apiKey: runtime.config.apiKey,
           model: runtime.config.model,
           messages: message.messages,
           extraBodyParams,
+          headers: providerHeaders,
+          sessionId: message.sessionId,
           signal: controller.signal,
           callbacks: {
             onConnecting: () =>
@@ -269,6 +278,7 @@ export default defineBackground(() => {
           const result = await fetchModels({
             modelUrl: runtime.config.modelUrl,
             apiKey: runtime.config.apiKey,
+            headers: getProviderHeaders(runtime.config.providerId),
           });
           if ("models" in result)
             return { ok: true as const, models: result.models };
@@ -283,10 +293,17 @@ export default defineBackground(() => {
         .then((settings) => {
           const runtime = resolveProviderRuntimeConfig(settings);
           if (!runtime.ok) return { ok: false as const, error: runtime.error };
+          const testSessionId = `test-${crypto.randomUUID()}`;
+          const headers = getProviderHeaders(
+            runtime.config.providerId,
+            testSessionId,
+          );
           return testConnection({
             baseUrl: runtime.config.baseUrl,
             apiKey: runtime.config.apiKey,
             model: runtime.config.model,
+            headers,
+            sessionId: testSessionId,
           });
         })
         .then(sendResponse);
@@ -521,10 +538,12 @@ export default defineBackground(() => {
             }
           }, TIMEOUTS.READER_HANDOFF);
 
-          readerReady = (msg: any) => {
+          readerReady = (msg: unknown) => {
             if (
-              msg.type === "READER_CONTENT_READY" &&
-              msg.requestId === message.requestId
+              typeof msg === "object" &&
+              msg !== null &&
+              (msg as { type?: unknown }).type === "READER_CONTENT_READY" &&
+              (msg as { requestId?: unknown }).requestId === message.requestId
             ) {
               cleanupHandoff();
               if (readerTab.id !== undefined) {

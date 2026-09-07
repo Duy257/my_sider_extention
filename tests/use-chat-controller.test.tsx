@@ -24,6 +24,7 @@ describe("useChatController", () => {
     expect(port.postMessage).toHaveBeenCalledWith({
       type: "AI_CHAT_REQUEST",
       requestId: expect.any(String),
+      sessionId: expect.any(String),
       messages: [
         expect.objectContaining({ role: "system" }),
         { role: "user", content: "Xin chào" }
@@ -141,4 +142,37 @@ describe("useChatController", () => {
     const assistantMessage = chatMessages.find((m) => m.role === "assistant");
     expect(assistantMessage?.debug).toEqual(completedTrace);
   });
+
+  it("maintains the same sessionId for consecutive prompts and regenerates it after clearChat", () => {
+    const { result } = renderHook(() => useChatController({ canSend: true }));
+
+    act(() => result.current.sendPrompt("Câu 1"));
+    const firstPort = (chrome.runtime.connect as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+    const firstSessionId = firstPort.postMessage.mock.calls[0][0].sessionId;
+    const firstRequestId = firstPort.postMessage.mock.calls[0][0].requestId;
+
+    expect(firstSessionId).toBeDefined();
+
+    act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId: firstRequestId, delta: "Trả lời 1" }));
+    act(() => portEntries[0].onMessage.trigger({ type: "AI_STREAM_DONE", requestId: firstRequestId }));
+
+    act(() => result.current.sendPrompt("Câu 2"));
+    const secondPort = (chrome.runtime.connect as unknown as ReturnType<typeof vi.fn>).mock.results[1].value;
+    const secondSessionId = secondPort.postMessage.mock.calls[0][0].sessionId;
+
+    // Must be same sessionId across conversation
+    expect(secondSessionId).toBe(firstSessionId);
+
+    // Clear chat
+    act(() => result.current.clearChat());
+
+    // Next message after clearChat must have new sessionId
+    act(() => result.current.sendPrompt("Câu mới"));
+    const thirdPort = (chrome.runtime.connect as unknown as ReturnType<typeof vi.fn>).mock.results[2].value;
+    const thirdSessionId = thirdPort.postMessage.mock.calls[0][0].sessionId;
+
+    expect(thirdSessionId).toBeDefined();
+    expect(thirdSessionId).not.toBe(firstSessionId);
+  });
 });
+

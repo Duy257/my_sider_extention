@@ -26,6 +26,7 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
   const [streaming, setStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeAssistantIdRef = useRef<string | null>(null);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
     if (prefillQuestion) {
@@ -79,7 +80,7 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
 
     const messages = buildUserChatMessages(contextPrompt, []);
 
-    start({ requestId, messages });
+    start({ requestId, sessionId: sessionIdRef.current, messages });
   }, [pageContent, streaming, start]);
 
   return (

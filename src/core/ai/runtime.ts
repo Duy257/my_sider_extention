@@ -124,3 +124,16 @@ export function getDevStreamParams(
   if (!devMode || providerId !== "openai") return undefined;
   return { stream_options: { include_usage: true } };
 }
+
+export function getProviderHeaders(
+  providerId: string,
+  sessionId?: string
+): Record<string, string> | undefined {
+  if (providerId === "opencode") {
+    return {
+      "x-opencode-session": sessionId?.trim() || crypto.randomUUID(),
+    };
+  }
+  return undefined;
+}
+

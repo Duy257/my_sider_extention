@@ -310,3 +310,123 @@ describe("optional auth", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("x-opencode-session header support and safety net", () => {
+  it("streamChatCompletion sends x-opencode-session when sessionId is provided", async () => {
+    const sse = [
+      'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+      "data: [DONE]\n\n"
+    ];
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      body: createMockSSE(sse)
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await streamChatCompletion({
+      baseUrl: "https://api.openai.com/v1/chat/completions",
+      apiKey: "sk-test",
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Hi" }],
+      sessionId: "session-xyz",
+      callbacks: {
+        onDelta: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn()
+      }
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/chat/completions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-opencode-session": "session-xyz"
+        })
+      })
+    );
+
+    vi.unstubAllGlobals();
+  });
+
+  it("streamChatCompletion automatically creates x-opencode-session when calling opencode.ai URL without sessionId", async () => {
+    const sse = [
+      'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+      "data: [DONE]\n\n"
+    ];
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      body: createMockSSE(sse)
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await streamChatCompletion({
+      baseUrl: "https://opencode.ai/zen/go/v1/chat/completions",
+      apiKey: "sk-opencode",
+      model: "minimax-m3",
+      messages: [{ role: "user", content: "Hi" }],
+      callbacks: {
+        onDelta: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn()
+      }
+    });
+
+    const callHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(callHeaders["x-opencode-session"]).toBeDefined();
+    expect(callHeaders["x-opencode-session"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+
+    vi.unstubAllGlobals();
+  });
+
+  it("testConnection automatically creates x-opencode-session when calling opencode.ai URL", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: "ok" } }] })
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await testConnection({
+      baseUrl: "https://opencode.ai/zen/go/v1/chat/completions",
+      apiKey: "sk-opencode",
+      model: "minimax-m3"
+    });
+
+    const callHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(callHeaders["x-opencode-session"]).toBeDefined();
+    expect(callHeaders["x-opencode-session"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+
+    vi.unstubAllGlobals();
+  });
+
+  it("fetchCompletion sends x-opencode-session when sessionId is provided or in headers", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: "Định nghĩa" } }] })
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchCompletion({
+      baseUrl: "https://api.openai.com/v1/chat/completions",
+      apiKey: "sk-test",
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Define" }],
+      sessionId: "session-def-123"
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/chat/completions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-opencode-session": "session-def-123"
+        })
+      })
+    );
+
+    vi.unstubAllGlobals();
+  });
+});
+

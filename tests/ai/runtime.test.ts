@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams } from "../../src/core/ai/runtime";
+import { getThinkingParams, resolveProviderRuntimeConfig, getDevStreamParams, getProviderHeaders } from "../../src/core/ai/runtime";
 import type { Settings } from "../../src/core/storage/types";
 
 function settings(overrides: Partial<Settings>): Settings {
@@ -154,4 +154,38 @@ describe("developer mode parameters", () => {
     expect(getDevStreamParams("openai", false)).toBeUndefined();
   });
 });
+
+describe("getProviderHeaders", () => {
+  it("returns x-opencode-session with provided sessionId for opencode", () => {
+    expect(getProviderHeaders("opencode", "sess-123")).toEqual({
+      "x-opencode-session": "sess-123",
+    });
+  });
+
+  it("generates random UUID when sessionId is missing or empty for opencode", () => {
+    const headers = getProviderHeaders("opencode");
+    expect(headers).toEqual({
+      "x-opencode-session": expect.any(String),
+    });
+    expect(headers?.["x-opencode-session"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+
+    const emptyHeaders = getProviderHeaders("opencode", "   ");
+    expect(emptyHeaders?.["x-opencode-session"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+  });
+
+  it("returns undefined for openai", () => {
+    expect(getProviderHeaders("openai", "sess-123")).toBeUndefined();
+    expect(getProviderHeaders("openai")).toBeUndefined();
+  });
+
+  it("returns undefined for lmstudio", () => {
+    expect(getProviderHeaders("lmstudio", "sess-123")).toBeUndefined();
+    expect(getProviderHeaders("lmstudio")).toBeUndefined();
+  });
+});
+
 

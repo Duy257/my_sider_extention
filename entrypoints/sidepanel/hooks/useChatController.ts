@@ -49,6 +49,7 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
   const messagesRef = useRef<ChatTimelineItem[]>([]);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamingRef = useRef(false);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
 
   // Throttling stream buffers
   const activeAssistantIdRef = useRef<string | null>(null);
@@ -202,6 +203,7 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
 
   function clearChat() {
     cancelStream();
+    sessionIdRef.current = crypto.randomUUID();
     setError("");
     setMessages([]);
   }
@@ -239,6 +241,7 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
 
     startAiStream({
       requestId,
+      sessionId: sessionIdRef.current,
       messages: providerMessages,
       ...(thinkingMode ? { thinkingMode } : {}),
       ...(devContext ? { devContext } : {})

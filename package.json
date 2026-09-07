@@ -12,6 +12,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "vitest",
     "postinstall": "wxt prepare",
     "bump": "sh scripts/bump-version.sh"

@@ -52,6 +52,7 @@ export function DefinitionPopover({ selection, onAskMore, onDismiss }: Definitio
           { role: "user", content: `Giải thích: ${selection.text}` },
         ],
         signal: abortController.signal,
+        sessionId: crypto.randomUUID(),
       }).then((result) => {
         if (abortController.signal.aborted) return;
         setLoading(false);

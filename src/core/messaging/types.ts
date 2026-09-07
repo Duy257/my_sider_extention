@@ -64,6 +64,7 @@ export type ExtensionMessage =
 export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
   requestId: string;
+  sessionId?: string;
   messages: AiMessage[];
   thinkingMode?: Settings["thinkingMode"];
   devContext?: AiDevContext;

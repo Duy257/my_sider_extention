@@ -37,17 +37,48 @@ type ModelsResponseBody = ProviderErrorPayload & {
 // Tạo headers HTTP cho request AI
 // - Nếu có API key: thêm header Authorization Bearer
 // - Nếu includeJson: thêm Content-Type application/json
+// - Nếu có extraHeaders: merge vào headers
 function createHeaders(
   apiKey?: string,
   includeJson = false,
+  extraHeaders?: Record<string, string>,
 ): Record<string, string> {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
   const trimmed = apiKey?.trim();
   if (trimmed) headers.Authorization = `Bearer ${trimmed}`;
+  if (extraHeaders) {
+    Object.assign(headers, extraHeaders);
+  }
   return headers;
 }
+
+// Bổ sung helper resolve request headers để tự động thêm x-opencode-session nếu là OpenCode endpoint
+function resolveRequestHeaders(options: {
+  baseUrl: string;
+  apiKey?: string;
+  includeJson?: boolean;
+  headers?: Record<string, string>;
+  sessionId?: string;
+}): Record<string, string> {
+  const extraHeaders: Record<string, string> = { ...(options.headers ?? {}) };
+
+  // Tự động đảm bảo x-opencode-session cho OpenCode
+  const isOpenCode = options.baseUrl.toLowerCase().includes("opencode.ai");
+  if (options.sessionId && !extraHeaders["x-opencode-session"]) {
+    extraHeaders["x-opencode-session"] = options.sessionId;
+  } else if (isOpenCode && !extraHeaders["x-opencode-session"]) {
+    extraHeaders["x-opencode-session"] = crypto.randomUUID();
+  }
+
+  return createHeaders(
+    options.apiKey,
+    options.includeJson ?? false,
+    extraHeaders,
+  );
+}
+
 
 // Tạo AbortSignal với timeout
 // Trả về signal và hàm clear để dọn dẹp timer
@@ -141,6 +172,8 @@ export async function streamChatCompletion(input: {
   messages: AiMessage[]; // lịch sử hội thoại
   signal?: AbortSignal; // signal để hủy request từ bên ngoài
   extraBodyParams?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  sessionId?: string;
   callbacks: StreamCallbacks;
 }): Promise<void> {
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
@@ -163,7 +196,13 @@ export async function streamChatCompletion(input: {
     const response = await fetchWithTimeout(input.baseUrl, {
       method: "POST",
       signal: input.signal,
-      headers: createHeaders(input.apiKey, true),
+      headers: resolveRequestHeaders({
+        baseUrl: input.baseUrl,
+        apiKey: input.apiKey,
+        includeJson: true,
+        headers: input.headers,
+        sessionId: input.sessionId,
+      }),
       body: JSON.stringify({
         model: input.model,
         messages: input.messages.map((m) => ({
@@ -328,12 +367,20 @@ export async function fetchCompletion(input: {
   messages: AiMessage[];
   signal?: AbortSignal;
   extraBodyParams?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  sessionId?: string;
 }): Promise<{ ok: true; content: string } | { ok: false; error: string }> {
   try {
     const response = await fetchWithTimeout(input.baseUrl, {
       method: "POST",
       signal: input.signal,
-      headers: createHeaders(input.apiKey, true),
+      headers: resolveRequestHeaders({
+        baseUrl: input.baseUrl,
+        apiKey: input.apiKey,
+        includeJson: true,
+        headers: input.headers,
+        sessionId: input.sessionId,
+      }),
       body: JSON.stringify({
         model: input.model,
         messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
@@ -377,11 +424,19 @@ export async function testConnection(input: {
   apiKey?: string;
   model: string;
   extraBodyParams?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  sessionId?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const response = await fetchWithTimeout(input.baseUrl, {
       method: "POST",
-      headers: createHeaders(input.apiKey, true),
+      headers: resolveRequestHeaders({
+        baseUrl: input.baseUrl,
+        apiKey: input.apiKey,
+        includeJson: true,
+        headers: input.headers,
+        sessionId: input.sessionId,
+      }),
       body: JSON.stringify({
         model: input.model,
         messages: [{ role: "user", content: "Hi" }],
@@ -444,10 +499,18 @@ export async function testConnection(input: {
 export async function fetchModels(input: {
   modelUrl: string; // URL endpoint lấy danh sách model
   apiKey?: string; // API key (nếu cần)
+  headers?: Record<string, string>;
+  sessionId?: string;
 }): Promise<{ models: string[] } | { error: string }> {
   try {
     const response = await fetchWithTimeout(input.modelUrl, {
-      headers: createHeaders(input.apiKey),
+      headers: resolveRequestHeaders({
+        baseUrl: input.modelUrl,
+        apiKey: input.apiKey,
+        includeJson: false,
+        headers: input.headers,
+        sessionId: input.sessionId,
+      }),
     });
 
     // Xử lý lỗi HTTP
