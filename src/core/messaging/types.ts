@@ -1,3 +1,4 @@
+import type { ModelEntry } from "../ai/client";
 import type { AiMessage } from "../ai/types";
 import type { SelectionAction } from "../selection/types";
 import type { Settings } from "../storage/types";
@@ -99,5 +100,5 @@ export type TestConnectionResponse =
   | { ok: false; error: string };
 
 export type LoadModelsResponse =
-  | { ok: true; models: string[] }
+  | { ok: true; models: ModelEntry[] }
   | { ok: false; error: string };
