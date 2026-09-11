@@ -252,7 +252,12 @@ describe("fetchModels", () => {
     });
     vi.stubGlobal("fetch", mockFetch);
 
-    await expect(fetchModels({ modelUrl: "https://api.test/v1/models", apiKey: "sk-test" })).resolves.toEqual({ models: ["a-model", "z-model"] });
+    await expect(fetchModels({ modelUrl: "https://api.test/v1/models", apiKey: "sk-test" })).resolves.toEqual({
+      models: [
+        { id: "a-model", label: "a-model" },
+        { id: "z-model", label: "z-model" }
+      ]
+    });
     expect(mockFetch).toHaveBeenCalledWith("https://api.test/v1/models", expect.objectContaining({ headers: { Authorization: "Bearer sk-test" } }));
 
     vi.unstubAllGlobals();

@@ -31,8 +31,10 @@ type ChatCompletionChunk = {
 
 // Body của endpoint /models
 type ModelsResponseBody = ProviderErrorPayload & {
-  data?: Array<{ id?: unknown }>;
+  data?: Array<{ id?: unknown; name?: unknown }>;
 };
+
+export type ModelEntry = { id: string; label: string };
 
 // Tạo headers HTTP cho request AI
 // - Nếu có API key: thêm header Authorization Bearer
@@ -501,7 +503,7 @@ export async function fetchModels(input: {
   apiKey?: string; // API key (nếu cần)
   headers?: Record<string, string>;
   sessionId?: string;
-}): Promise<{ models: string[] } | { error: string }> {
+}): Promise<{ models: ModelEntry[] } | { error: string }> {
   try {
     const response = await fetchWithTimeout(input.modelUrl, {
       headers: resolveRequestHeaders({
@@ -537,14 +539,20 @@ export async function fetchModels(input: {
     }
 
     // Trích xuất danh sách model từ body.data (theo chuẩn OpenAI API)
-    // Lọc bỏ giá trị rỗng, loại bỏ trùng lặp, sắp xếp A-Z
-    const models: string[] = Array.from(
-      new Set(
+    // Map mỗi entry thành { id, label }; label ưu tiên `name`, fallback về `id`
+    // Lọc bỏ entry thiếu id, loại bỏ trùng lặp, sắp xếp theo id A-Z
+    const models: ModelEntry[] = Array.from(
+      new Map(
         (body?.data ?? [])
-          .map((model) => (typeof model.id === "string" ? model.id.trim() : ""))
-          .filter(Boolean),
-      ),
-    ).sort();
+          .map((entry) => {
+            const id = typeof entry.id === "string" ? entry.id.trim() : "";
+            if (!id) return null;
+            const name = typeof entry.name === "string" ? entry.name.trim() : "";
+            return [id, { id, label: name || id } as ModelEntry] as const;
+          })
+          .filter((entry): entry is readonly [string, ModelEntry] => entry !== null),
+      ).values(),
+    ).sort((a, b) => a.id.localeCompare(b.id));
 
     if (models.length === 0)
       return { error: "No models returned by the provider." };
