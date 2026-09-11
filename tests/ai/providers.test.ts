@@ -3,7 +3,7 @@ import { getDefaultProviderId, getProvider, getProviderOptions, normalizeProvide
 
 describe("provider registry", () => {
   it("loads bundled provider definitions", () => {
-    expect(PROVIDERS.map((provider) => provider.id)).toEqual(["openai", "opencode", "commandcode", "lmstudio"]);
+    expect(PROVIDERS.map((provider) => provider.id)).toEqual(["openai", "opencode", "commandcode", "lmstudio", "openrouter"]);
     expect(getDefaultProviderId()).toBe("openai");
     expect(getProvider("lmstudio")?.requiresApiKey).toBe(false);
   });
