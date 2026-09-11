@@ -3,6 +3,8 @@ import { getProvider, getProviderOptions } from "../../../src/core/ai/providers"
 import type { LoadModelsResponse, TestConnectionResponse } from "../../../src/core/messaging/types";
 import type { Settings } from "../../../src/core/storage/types";
 import { DEV_COPY } from "../../../src/core/devtools/copy";
+import { Autocomplete, type AutocompleteOption } from "./Autocomplete";
+import type { ModelEntry } from "../../../src/core/ai/client";
 
 function EyeIcon() {
   return (
@@ -59,10 +61,6 @@ function PlugIcon() {
   );
 }
 
-function ModelSkeleton() {
-  return <div className="h-10 w-full animate-pulse rounded-xl bg-warm-bg border border-stone-800" />;
-}
-
 export function SettingsPanel(props: {
   settings: Settings;
   onChange: (settings: Settings) => void | Promise<void>;
@@ -71,7 +69,10 @@ export function SettingsPanel(props: {
   const providerId = provider?.id ?? "openai";
   const [testing, setTesting] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [models, setModels] = useState<string[]>(provider?.knownModels ?? []);
+  const toEntry = (id: string): ModelEntry => ({ id, label: id });
+  const [models, setModels] = useState<ModelEntry[]>(
+    (provider?.knownModels ?? []).map(toEntry)
+  );
   const [modelWarning, setModelWarning] = useState<string | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -109,7 +110,7 @@ export function SettingsPanel(props: {
 
   async function updateProvider(value: string) {
     const nextProvider = getProvider(value);
-    const nextModels = nextProvider?.knownModels ?? [];
+    const nextModels = (nextProvider?.knownModels ?? []).map(toEntry);
     setModels(nextModels);
     setModelWarning(null);
     setModelError(null);
@@ -122,7 +123,7 @@ export function SettingsPanel(props: {
   useEffect(() => {
     let cancelled = false;
     const knownModels = provider?.knownModels ?? [];
-    setModels(knownModels);
+    setModels(knownModels.map(toEntry));
     setModelError(null);
     setModelWarning(null);
 
@@ -142,16 +143,19 @@ export function SettingsPanel(props: {
           setModels(response.models);
           setModelWarning(null);
           const current = props.settings.selectedModels[provider.id];
-          const nextModel = current && response.models.includes(current)
+          const modelIds = response.models.map((entry) => entry.id);
+          const nextModel = current && modelIds.includes(current)
             ? current
-            : provider.defaultModel && response.models.includes(provider.defaultModel)
+            : provider.defaultModel && modelIds.includes(provider.defaultModel)
               ? provider.defaultModel
-              : response.models[0];
+              : response.models[0]?.id;
           if (nextModel && nextModel !== current) {
-            props.onChange(createNextSettings({ selectedModels: { ...props.settings.selectedModels, [provider.id]: nextModel } }));
+            props.onChange(createNextSettings({
+              selectedModels: { ...props.settings.selectedModels, [provider.id]: nextModel }
+            }));
           }
         } else if (knownModels.length > 0) {
-          setModels(knownModels);
+          setModels(knownModels.map(toEntry));
           setModelWarning("Không tải được danh sách mô hình. Đang dùng mô hình có sẵn.");
         } else {
           setModels([]);
@@ -161,7 +165,7 @@ export function SettingsPanel(props: {
       .catch(() => {
         if (cancelled) return;
         if (knownModels.length > 0) {
-          setModels(knownModels);
+          setModels(knownModels.map(toEntry));
           setModelWarning("Không tải được danh sách mô hình. Đang dùng mô hình có sẵn.");
         } else {
           setModels([]);
@@ -196,16 +200,13 @@ export function SettingsPanel(props: {
         <label htmlFor="provider-select" className="block text-xs font-semibold text-stone-400 uppercase tracking-wider">
           Nhà cung cấp
         </label>
-        <div className="relative mt-2">
-          <select
+        <div className="mt-2">
+          <Autocomplete
             id="provider-select"
-            className="w-full appearance-none rounded-xl border border-stone-850 bg-warm-bg px-3.5 py-3 text-[13.5px] font-medium text-stone-100 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-colors shadow-inner"
             value={providerId}
-            onChange={(event) => updateProvider(event.target.value)}
-          >
-            {getProviderOptions().map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-          </select>
-          <ChevronIcon />
+            options={getProviderOptions()}
+            onChange={updateProvider}
+          />
         </div>
       </div>
 
@@ -248,22 +249,16 @@ export function SettingsPanel(props: {
         <label htmlFor="model-select" className="block text-xs font-semibold text-stone-400 uppercase tracking-wider">
           Mô hình
         </label>
-        <div className="relative mt-2">
-          {loadingModels ? (
-            <ModelSkeleton />
-          ) : (
-            <select
-              id="model-select"
-              className="w-full appearance-none rounded-xl border border-stone-850 bg-warm-bg px-3.5 py-3 text-[13.5px] font-medium text-stone-100 outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/45 transition-colors shadow-inner disabled:opacity-50"
-              value={selectedModel}
-              onChange={(event) => updateSelectedModel(event.target.value)}
-              disabled={models.length === 0}
-            >
-              {selectedModel && !models.includes(selectedModel) ? <option value={selectedModel}>{selectedModel}</option> : null}
-              {models.map((model) => <option key={model} value={model}>{model}</option>)}
-            </select>
-          )}
-          {!loadingModels && <ChevronIcon />}
+        <div className="mt-2">
+          <Autocomplete
+            id="model-select"
+            value={selectedModel}
+            options={models}
+            onChange={updateSelectedModel}
+            loading={loadingModels}
+            disabled={models.length === 0 && !selectedModel}
+            emptyMessage={modelError ?? "Không có mô hình nào."}
+          />
         </div>
         {!loadingModels && modelWarning ? (
           <div className="mt-2.5 flex items-start gap-1.5 text-xs text-amber-400 font-medium">

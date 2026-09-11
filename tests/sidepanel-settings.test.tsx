@@ -23,12 +23,17 @@ describe("SettingsPanel", () => {
     vi.mocked(chrome.runtime.sendMessage).mockReset();
   });
 
-  it("renders bundled providers and removes manual base url UI", () => {
+  it("renders bundled providers and removes manual base url UI", async () => {
+    const user = userEvent.setup();
     render(<SettingsPanel settings={settings()} onChange={vi.fn()} />);
 
     expect(screen.getByLabelText(/Nhà cung cấp/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: /Nhà cung cấp/i }));
     expect(screen.getByRole("option", { name: "OpenAI" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "LMStudio" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "OpenRouter" })).toBeInTheDocument();
+
     expect(screen.queryByLabelText(/Base URL/i)).not.toBeInTheDocument();
   });
 
@@ -49,18 +54,32 @@ describe("SettingsPanel", () => {
   });
 
   it("loads models and selects first returned model", async () => {
-    vi.mocked(chrome.runtime.sendMessage as any).mockResolvedValue({ ok: true, models: ["model-a", "model-b"] });
+    const user = userEvent.setup();
+    vi.mocked(chrome.runtime.sendMessage as any).mockResolvedValue({
+      ok: true,
+      models: [
+        { id: "model-a", label: "model-a" },
+        { id: "model-b", label: "model-b" },
+      ],
+    });
     const onChange = vi.fn();
     render(<SettingsPanel settings={settings({ apiKeys: { openai: "sk" } })} onChange={onChange} />);
 
-    await waitFor(() => expect(screen.getByRole("option", { name: "model-a" })).toBeInTheDocument());
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ selectedModels: { openai: "model-a" } }));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ selectedModels: { openai: "model-a" } })
+      )
+    );
+    await user.click(screen.getByRole("combobox", { name: /Mô hình/i }));
+    expect(screen.getByRole("option", { name: "model-a" })).toBeInTheDocument();
   });
 
-  it("uses known models when model loading is blocked by missing key", () => {
+  it("uses known models when model loading is blocked by missing key", async () => {
+    const user = userEvent.setup();
     render(<SettingsPanel settings={settings({ providerId: "opencode" })} onChange={vi.fn()} />);
 
     expect(screen.getByText(/Thêm khóa API để tải mô hình trực tiếp/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: /Mô hình/i }));
     expect(screen.getByRole("option", { name: "minimax-m3" })).toBeInTheDocument();
   });
 
