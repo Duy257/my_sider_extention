@@ -32,6 +32,7 @@ describe("background-trace AI Traces", () => {
       thinkingMode: "high",
       extraBodyParams: {
         reasoning_effort: "high",
+        thinking: { type: "disabled" },
         stream_options: { include_usage: true },
         unsafe_param: "secret"
       },
@@ -40,6 +41,7 @@ describe("background-trace AI Traces", () => {
 
     expect(trace.effectiveRequestParams).toEqual({
       reasoning_effort: "high",
+      thinking: { type: "disabled" },
       stream_options: { include_usage: true }
     });
   });

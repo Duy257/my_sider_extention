@@ -118,14 +118,30 @@ describe("getThinkingParams", () => {
 
   it("returns thinking object for deepseek model", () => {
     expect(getThinkingParams("opencode", "medium", "deepseek-v4-pro")).toEqual({
-      thinking: { type: "enabled" }
+      thinking: { type: "enabled" },
+      reasoning_effort: "medium"
     });
     expect(getThinkingParams("opencode", "off", "deepseek-v4-pro")).toEqual({
-      thinking: { type: "disabled" }
+      thinking: { type: "disabled" },
+      reasoning_effort: "low"
     });
     expect(getThinkingParams("opencode", "max", "deepseek-v4-pro")).toEqual({
       thinking: { type: "enabled" },
       reasoning_effort: "max"
+    });
+  });
+
+  it("returns reasoning_effort for commandcode provider", () => {
+    expect(getThinkingParams("commandcode", "low")).toEqual({ reasoning_effort: "low" });
+    expect(getThinkingParams("commandcode", "high")).toEqual({ reasoning_effort: "high" });
+    expect(getThinkingParams("commandcode", "max")).toEqual({ reasoning_effort: "high" });
+    expect(getThinkingParams("commandcode", "off")).toBeUndefined();
+  });
+
+  it("returns thinking object for deepseek model on commandcode", () => {
+    expect(getThinkingParams("commandcode", "off", "deepseek/deepseek-v4.1-flash")).toEqual({
+      thinking: { type: "disabled" },
+      reasoning_effort: "low"
     });
   });
 });

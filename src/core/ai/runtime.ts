@@ -18,6 +18,20 @@ const THINKING_PARAM_MAP: Record<string, Record<string, Record<string, unknown> 
     high: { reasoning_effort: "high" },
     max: { reasoning_effort: "high" },
   },
+  commandcode: {
+    off: undefined,
+    low: { reasoning_effort: "low" },
+    medium: { reasoning_effort: "medium" },
+    high: { reasoning_effort: "high" },
+    max: { reasoning_effort: "high" },
+  },
+};
+
+const DEEPSEEK_EFFORT_BY_MODE: Record<"low" | "medium" | "high" | "max", string> = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  max: "max"
 };
 
 export function getThinkingParams(
@@ -28,27 +42,23 @@ export function getThinkingParams(
   const isDeepSeek = model?.toLowerCase().includes("deepseek");
 
   if (isDeepSeek) {
+    // Gửi đồng thời cả 2 param:
+    // - `thinking.type` là toggle chính thức của DeepSeek API (nhưng là field ngoài
+    //   OpenAI Chat Completions schema nên router kiểu CommandCode có thể bỏ qua).
+    // - `reasoning_effort` thuộc OpenAI schema nên luôn được forward; "low" là mức
+    //   thấp nhất router chấp nhận (enum: low|medium|high|xhigh|max — "minimal" bị
+    //   reject) và cũng là actual-effort thấp nhất DeepSeek map được.
     if (mode === "off") {
       return {
-        thinking: {
-          type: "disabled"
-        }
+        thinking: { type: "disabled" },
+        reasoning_effort: "low"
       };
     }
 
-    const baseParams: Record<string, unknown> = {
-      thinking: {
-        type: "enabled"
-      }
+    return {
+      thinking: { type: "enabled" },
+      reasoning_effort: DEEPSEEK_EFFORT_BY_MODE[mode]
     };
-
-    if (mode === "high") {
-      baseParams.reasoning_effort = "high";
-    } else if (mode === "max") {
-      baseParams.reasoning_effort = "max";
-    }
-
-    return baseParams;
   }
 
   if (mode === "off") return undefined;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchCompletion } from "../../../src/core/ai/client";
-import { resolveProviderRuntimeConfig } from "../../../src/core/ai/runtime";
+import { getThinkingParams, resolveProviderRuntimeConfig } from "../../../src/core/ai/runtime";
 import { getSettings } from "../../../src/core/storage";
 import type { SelectionInfo } from "../types";
 
@@ -51,6 +51,11 @@ export function DefinitionPopover({ selection, onAskMore, onDismiss }: Definitio
           { role: "system", content: "Bạn là trợ lý giải thích. Giải thích ngắn gọn (1-3 câu) khái niệm sau bằng tiếng Việt. Chỉ trả lời phần giải thích, không thêm gì khác." },
           { role: "user", content: `Giải thích: ${selection.text}` },
         ],
+        extraBodyParams: getThinkingParams(
+          runtime.config.providerId,
+          runtime.config.thinkingMode,
+          runtime.config.model,
+        ),
         signal: abortController.signal,
         sessionId: crypto.randomUUID(),
       }).then((result) => {

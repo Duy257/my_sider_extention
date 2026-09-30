@@ -304,6 +304,11 @@ export default defineBackground(() => {
             model: runtime.config.model,
             headers,
             sessionId: testSessionId,
+            extraBodyParams: getThinkingParams(
+              runtime.config.providerId,
+              "off",
+              runtime.config.model,
+            ),
           });
         })
         .then(sendResponse);

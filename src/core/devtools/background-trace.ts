@@ -17,6 +17,9 @@ function pickSafeRequestParams(extraBodyParams?: Record<string, unknown>): Recor
   if ("reasoning_effort" in extraBodyParams) {
     result.reasoning_effort = extraBodyParams.reasoning_effort;
   }
+  if ("thinking" in extraBodyParams) {
+    result.thinking = extraBodyParams.thinking;
+  }
   if ("stream_options" in extraBodyParams) {
     result.stream_options = extraBodyParams.stream_options;
   }
