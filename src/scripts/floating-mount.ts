@@ -15,6 +15,7 @@ export interface MountOptions {
   title: string;
   sessionId?: string;
   toolTrace?: ToolDevTrace;
+  devMode?: boolean;
 }
 
 export function mountFloatingWindow(options: MountOptions) {
@@ -269,6 +270,7 @@ export function mountFloatingWindow(options: MountOptions) {
       sessionId: options.sessionId,
       onClose: destroyFloatingWindow,
       toolTrace: options.toolTrace,
+      devMode: options.devMode,
     }),
   );
 

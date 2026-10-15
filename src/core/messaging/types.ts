@@ -34,6 +34,8 @@ export type ExtensionMessage =
       messages: AiMessage[];
       title: string;
       actionPosition: { top: number; left: number };
+      devMode?: boolean;
+      toolTrace?: ToolDevTrace;
     }
   | { type: "SETTINGS_UPDATED" }
   | { type: "OPEN_READING_COMPANION"; requestId: string }
@@ -62,6 +64,8 @@ export type ExtensionMessage =
       date: string;
     };
 
+export type AiFirstTokenKind = "reasoning" | "text";
+
 export type AiPortRequest = {
   type: "AI_CHAT_REQUEST";
   requestId: string;
@@ -73,7 +77,12 @@ export type AiPortRequest = {
 
 export type AiPortResponse =
   | { type: "AI_STREAM_CONNECTING"; requestId: string }
-  | { type: "AI_STREAM_FIRST_TOKEN"; requestId: string }
+  | {
+      type: "AI_STREAM_FIRST_TOKEN";
+      requestId: string;
+      at?: number; // thời điểm nhận token đầu (chỉ có khi dev trace bật)
+      kind?: AiFirstTokenKind; // token đầu là reasoning hay text
+    }
   | { type: "AI_STREAM_DEBUG_START"; requestId: string; trace: AiDevTrace }
   | { type: "AI_STREAM_REASONING"; requestId: string; delta: string }
   | { type: "AI_STREAM_CHUNK"; requestId: string; delta: string }

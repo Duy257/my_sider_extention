@@ -235,7 +235,9 @@
 - Nút "Sao chép" (với feedback "Đã sao chép" 1.8s)
 - Nút "Lưu kết quả" (cho message AI)
 - Hiệu ứng fade-in-up
-- TypingIndicator: 3 chấm bounce + phase text
+- `memo`: tin cũ đã xong không bị vẽ lại khi tin khác đang stream
+- Tin assistant chưa có nội dung: 3 chấm bounce + chữ theo phase ngay trong bong bóng
+  ("đang kết nối...", "đang suy nghĩ...", "đang trả lời..."), ẩn nút Sao chép / Lưu
 
 ### 10.3 MessageContent (Markdown render)
 - **File**: `src/lib/ui/MessageContent.tsx`

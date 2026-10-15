@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **DevTools trace** (`docs/review-code/DEVTOOLS_FLOW_REVIEW.md`):
+  - DV1: trace không còn kẹt `pending` sau lỗi, hủy hoặc mất kết nối; sidepanel, cửa sổ nổi và reader chốt trace với status `error` / `cancelled` / `interrupted`.
+  - DV2: sidepanel chỉ tự cuộn về đáy khi người dùng đang ở gần đáy (`useStickToBottom`); gửi tin mới luôn kéo về đáy.
+  - DV3: ô reasoning tự cuộn theo nội dung mới, dừng bám khi người dùng cuộn lên trong ô.
+  - DV4: `AI_STREAM_FIRST_TOKEN` gửi kèm thời điểm (`at`) để TTFT hiện ngay; dòng tóm tắt DEV đếm giây khi trace còn `pending`.
+  - DV5: phase `thinking` ("đang suy nghĩ...") dựa vào `kind` của token đầu; chỉ báo nằm trong bong bóng, không còn bong bóng rỗng và hai avatar.
+  - DV6: nút gửi thành nút "Dừng" trong mọi phase khi đang stream.
+  - DV9: bỏ `aria-live` khỏi cả section DEV (chỉ thông báo status); panel tự đóng khi trace kết thúc nếu do hệ thống tự mở. Danh sách chat dùng `aria-busy` trong lúc stream.
+  - Tailwind quét thêm `src/**` nên class của `DebugDetails` và message renderers (vd. `max-h-60` của ô reasoning) có trong CSS build.
+
+### Performance
+- DV7: `ChatMessage` bọc `memo`, callback (`saveMessage`, `setError`, `dismissError`, `setMessages`) ổn định; tin cũ không render lại mỗi 100ms.
+- DV8: `useAiStream` có tùy chọn `flushMs` gom delta; cửa sổ nổi, reader và sidepanel dùng chung (400 delta còn khoảng 20 commit). `useChatController` bỏ bộ buffer riêng.
+- DV12: `AI_STREAM_DONE` / `AI_STREAM_ERROR` không gửi lại toàn bộ reasoning; UI ghép trace cuối với reasoning đã nhận (`mergeFinalTrace`).
+
+### Added
+- DV10: reader (Tóm tắt, Hỏi đáp) gửi `devContext` (`reader-summary`, `reader-qa`) khi bật Dev Mode và hiện `DebugDetails`.
+- DV11: cửa sổ nổi nhận cờ `devMode` từ background (`FORWARD_SELECTION_ACTION.devMode`) thay vì đoán qua `toolTrace`.
+
 ### Changed
 - AI client chuyển sang Vercel AI SDK v7 (`ai` + `@ai-sdk/openai-compatible`): `streamChatCompletion` dùng `streamText`, `fetchCompletion` / `testConnection` dùng `generateText`. Public API của `src/core/ai/client.ts` giữ nguyên.
 - Tách helper HTTP sang `src/core/ai/http.ts`, thêm `src/core/ai/model.ts` (`createLanguageModel`) và `classifyAiError` trong `src/core/ai/stream.ts`.

@@ -48,6 +48,12 @@ export function createAiTrace(input: {
   };
 }
 
+// UI đã nhận toàn bộ reasoning qua AI_STREAM_REASONING (port giữ đúng thứ tự),
+// nên trace cuối chỉ cần trạng thái, không gửi lại nội dung reasoning
+function withoutReasoningContent(trace: AiDevTrace): AiDevTrace {
+  return { ...trace, thinking: { state: trace.thinking.state, content: "" } };
+}
+
 export function createAiPortTraceEmitter(input: {
   trace: AiDevTrace;
   send: (message: AiPortResponse) => void;
@@ -71,8 +77,11 @@ export function createAiPortTraceEmitter(input: {
         delta
       });
     },
-    onFirstToken: () => {
-      trace = markFirstToken(trace, input.now());
+    // Trả về thời điểm token đầu để background gửi kèm AI_STREAM_FIRST_TOKEN
+    onFirstToken: (): number => {
+      const at = input.now();
+      trace = markFirstToken(trace, at);
+      return at;
     },
     onUsage: (usage: TokenUsage) => {
       trace = applyDebugUpdate(trace, { usage });
@@ -90,13 +99,14 @@ export function createAiPortTraceEmitter(input: {
         finishReason
       });
     },
+    // Trace trả về để gửi kèm DONE/ERROR, không kèm reasoning (xem withoutReasoningContent)
     onDone: (): AiDevTrace => {
       trace = finishAiTrace(trace, input.now());
-      return trace;
+      return withoutReasoningContent(trace);
     },
     onError: (message: string, status: "error" | "cancelled" | "interrupted" = "error"): AiDevTrace => {
       trace = failAiTrace(trace, message, input.now(), status);
-      return trace;
+      return withoutReasoningContent(trace);
     }
   };
 }

@@ -1,6 +1,24 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useReducer, useRef } from "react";
+import type { CSSProperties } from "react";
 import type { AiDevTrace } from "../../core/devtools/types";
 import { DEV_COPY } from "../../core/devtools/copy";
+
+// Ẩn khỏi màn hình nhưng vẫn để trình đọc màn hình đọc được.
+// Dùng inline style vì component còn chạy trong shadow DOM của cửa sổ nổi (không có Tailwind).
+const VISUALLY_HIDDEN: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0
+};
+
+// Khoảng cách tới đáy ô reasoning (px) vẫn được coi là "đang ở đáy"
+const THINKING_STICK_THRESHOLD = 24;
 
 type DebugDetailsProps = {
   trace: AiDevTrace;
@@ -13,15 +31,39 @@ export function DebugDetails({ trace, compact }: DebugDetailsProps) {
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevStreamingRef = useRef(false);
+  // true khi panel do hệ thống tự mở; người dùng bấm toggle thì không tự đóng nữa
+  const autoExpandedRef = useRef(false);
+  const thinkingRef = useRef<HTMLPreElement>(null);
+  const thinkingStickRef = useRef(true);
+  const [, forceTick] = useReducer((n: number) => n + 1, 0);
 
-  // Auto-expand reasoning only on the initial start of streaming reasoning
+  // Tự mở khi reasoning bắt đầu stream; tự đóng khi trace kết thúc nếu panel do hệ thống mở
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = isStreamingReasoning;
     if (!wasStreaming && isStreamingReasoning) {
+      autoExpandedRef.current = true;
       setExpanded(true);
+    } else if (wasStreaming && !isStreamingReasoning && autoExpandedRef.current) {
+      autoExpandedRef.current = false;
+      setExpanded(false);
     }
   }, [isStreamingReasoning]);
+
+  // Cập nhật thời gian đã chạy mỗi giây khi trace còn pending (không có delta nào làm re-render)
+  useEffect(() => {
+    if (trace.status !== "pending") return;
+    const timer = setInterval(forceTick, 1000);
+    return () => clearInterval(timer);
+  }, [trace.status]);
+
+  // Ô reasoning bám theo nội dung mới nếu người dùng chưa cuộn lên; chạy trước khi vẽ để không nháy
+  useLayoutEffect(() => {
+    const el = thinkingRef.current;
+    if (el && isStreamingReasoning && thinkingStickRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [trace.thinking.content, isStreamingReasoning, expanded]);
 
   useEffect(() => {
     return () => {
@@ -72,14 +114,20 @@ export function DebugDetails({ trace, compact }: DebugDetailsProps) {
     <section
       role="region"
       aria-label="AI dev trace"
-      aria-live="polite"
       className={`mt-2 rounded-xl border border-stone-850 bg-stone-950 font-mono text-[11px] text-stone-400 ${compact ? "p-2" : "p-3"}`}
     >
+      {/* Chỉ thông báo khi status đổi, không đọc từng đoạn reasoning mới */}
+      <span style={VISUALLY_HIDDEN} aria-live="polite">
+        {trace.status === "pending" ? "" : trace.status}
+      </span>
       <button
         type="button"
         aria-expanded={expanded}
         aria-controls={`debug-details-${trace.requestId}`}
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => {
+          autoExpandedRef.current = false;
+          setExpanded(!expanded);
+        }}
         className="flex w-full items-center justify-between font-semibold tracking-wide text-stone-300 outline-none hover:text-violet-400 transition-colors cursor-pointer"
       >
         <span>{getSummaryText()}</span>
@@ -127,7 +175,15 @@ export function DebugDetails({ trace, compact }: DebugDetailsProps) {
               ) : trace.thinking.state === "pending" && !trace.thinking.content ? (
                 <div className="text-stone-500 animate-pulse">...</div>
               ) : (
-                <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded border border-stone-900 bg-stone-900/60 p-2 leading-relaxed text-stone-300 break-all font-mono">
+                <pre
+                  ref={thinkingRef}
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    thinkingStickRef.current =
+                      el.scrollHeight - el.scrollTop - el.clientHeight < THINKING_STICK_THRESHOLD;
+                  }}
+                  className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded border border-stone-900 bg-stone-900/60 p-2 leading-relaxed text-stone-300 break-all font-mono"
+                >
                   {trace.thinking.content}
                 </pre>
               )}

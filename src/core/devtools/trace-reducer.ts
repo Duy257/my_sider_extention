@@ -55,3 +55,31 @@ export function failAiTrace(
       : { state: "not-returned", content: "" }
   };
 }
+
+// Ghép trace đã chốt từ background vào trace đang hiển thị.
+// Background không gửi lại reasoning trong DONE/ERROR (UI đã nhận qua AI_STREAM_REASONING),
+// nên giữ phần reasoning UI đang có nếu trace cuối không kèm nội dung.
+export function mergeFinalTrace(current: AiDevTrace | undefined, final: AiDevTrace): AiDevTrace {
+  const content = final.thinking.content || current?.thinking.content || "";
+  return {
+    ...final,
+    thinking: content ? { state: "returned", content } : final.thinking
+  };
+}
+
+// Cách một lượt stream kết thúc: trace background đã chốt, hoặc UI tự chốt
+export type AiTraceEnding =
+  | { trace: AiDevTrace }
+  | { status: "success"; now: number }
+  | { error: string; status: "error" | "cancelled" | "interrupted"; now: number };
+
+// Chốt trace khi stream kết thúc; trace đã chốt rồi thì giữ nguyên
+export function endAiTrace(
+  current: AiDevTrace | undefined,
+  ending: AiTraceEnding
+): AiDevTrace | undefined {
+  if ("trace" in ending) return mergeFinalTrace(current, ending.trace);
+  if (!current || current.status !== "pending") return current;
+  if (ending.status === "success") return finishAiTrace(current, ending.now);
+  return failAiTrace(current, ending.error, ending.now, ending.status);
+}

@@ -205,6 +205,7 @@ export default defineUnlistedScript(() => {
         requestId: message.requestId,
         title: message.title,
         toolTrace: message.toolTrace,
+        devMode: message.devMode === true,
       });
       sendResponse({ ok: true });
       return true;

@@ -200,11 +200,13 @@ export default defineBackground(() => {
                 type: "AI_STREAM_CONNECTING",
                 requestId: message.requestId,
               }),
-            onFirstToken: () => {
-              emitter?.onFirstToken();
+            onFirstToken: (kind) => {
+              const at = emitter?.onFirstToken();
               send({
                 type: "AI_STREAM_FIRST_TOKEN",
                 requestId: message.requestId,
+                kind,
+                ...(at ? { at } : {}),
               });
             },
             onDelta: (delta) =>
@@ -344,6 +346,7 @@ export default defineBackground(() => {
                 top: message.position?.top ?? 200,
                 left: message.position?.left ?? 200,
               },
+              devMode: isDevModeActive,
               ...(trace ? { toolTrace: trace } : {}),
             });
             sendResponse({ ok: true, ...(trace ? { toolTrace: trace } : {}) });

@@ -18,6 +18,14 @@ function SendSpinner() {
   );
 }
 
+function StopSquare() {
+  return (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="5" y="5" width="14" height="14" rx="2" />
+    </svg>
+  );
+}
+
 export function ChatComposer(props: {
   disabled: boolean;
   onSend: (text: string, thinkingMode?: "off" | "low" | "medium" | "high" | "max") => void;
@@ -25,6 +33,7 @@ export function ChatComposer(props: {
   missingType?: "key" | "model";
   providerLabel?: string;
   sending?: boolean;
+  onStop?: () => void; // có thì nút gửi thành nút dừng trong lúc sending
   defaultThinkingMode?: "off" | "low" | "medium" | "high" | "max";
 }) {
   const [value, setValue] = useState("");
@@ -113,14 +122,26 @@ export function ChatComposer(props: {
             rows={1}
             aria-label="Hỏi về công việc của bạn"
           />
-          <button
-            className={`absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-dark transition-all duration-300 shadow-md disabled:bg-stone-800 disabled:text-stone-500 disabled:opacity-40 disabled:shadow-none group-hover/form:shadow-primary/10 group/btn cursor-pointer`}
-            type="submit"
-            disabled={props.disabled || !value.trim()}
-            title="Gửi"
-          >
-            {props.sending ? <SendSpinner /> : <SendArrow />}
-          </button>
+          {props.sending && props.onStop ? (
+            <button
+              className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-lg border border-stone-700 bg-surface text-stone-200 hover:border-red-900/50 hover:bg-red-950/30 hover:text-red-400 transition-all duration-300 shadow-md cursor-pointer"
+              type="button"
+              onClick={props.onStop}
+              title="Dừng"
+              aria-label="Dừng phản hồi"
+            >
+              <StopSquare />
+            </button>
+          ) : (
+            <button
+              className={`absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-dark transition-all duration-300 shadow-md disabled:bg-stone-800 disabled:text-stone-500 disabled:opacity-40 disabled:shadow-none group-hover/form:shadow-primary/10 group/btn cursor-pointer`}
+              type="submit"
+              disabled={props.disabled || !value.trim()}
+              title="Gửi"
+            >
+              {props.sending ? <SendSpinner /> : <SendArrow />}
+            </button>
+          )}
         </div>
       </form>
     </div>

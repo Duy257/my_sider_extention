@@ -487,4 +487,122 @@ describe("FloatingWindow", () => {
       }),
     );
   });
+
+  describe("stream lifecycle and dev trace", () => {
+    function connectedPort() {
+      const port = (chrome.runtime.connect as any).mock.results.at(-1).value;
+      const requestId: string = port.postMessage.mock.calls[0][0].requestId;
+      const entry = portEntries[portEntries.length - 1];
+      return { port, requestId, entry };
+    }
+
+    const pendingTrace = (requestId: string) => ({
+      requestId,
+      surface: "floating" as const,
+      feature: "chat" as const,
+      status: "pending" as const,
+      providerId: "openai",
+      model: "gpt-4o",
+      requestedThinkingMode: "off" as const,
+      effectiveRequestParams: {},
+      startedAt: 1000,
+      thinking: { state: "pending" as const, content: "" },
+    });
+
+    it("moves to error and marks the trace interrupted when the port drops before DONE", () => {
+      render(React.createElement(FloatingWindow, { ...defaultProps, devMode: true }));
+      const { requestId, entry } = connectedPort();
+
+      act(() => {
+        entry.onMessage.trigger({ type: "AI_STREAM_DEBUG_START", requestId, trace: pendingTrace(requestId) });
+        entry.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Đang" });
+      });
+      act(() => entry.onDisconnect.trigger());
+
+      expect(screen.getByText("Lỗi phản hồi")).toBeInTheDocument();
+      expect(screen.getByText("Mất kết nối.")).toBeInTheDocument();
+      const region = screen.getByRole("region", { name: "AI dev trace" });
+      expect(region.querySelector("[aria-live='polite']")).toHaveTextContent("interrupted");
+    });
+
+    it("finalizes a pending trace when AI_STREAM_ERROR arrives without a trace", () => {
+      render(React.createElement(FloatingWindow, { ...defaultProps, devMode: true }));
+      const { requestId, entry } = connectedPort();
+
+      act(() => {
+        entry.onMessage.trigger({ type: "AI_STREAM_DEBUG_START", requestId, trace: pendingTrace(requestId) });
+        entry.onMessage.trigger({ type: "AI_STREAM_ERROR", requestId, message: "HTTP 500" });
+      });
+
+      const region = screen.getByRole("region", { name: "AI dev trace" });
+      expect(region.querySelector("[aria-live='polite']")).toHaveTextContent("error");
+    });
+
+    it("renders at most ~25 commits for 400 deltas and keeps the full content", () => {
+      vi.useFakeTimers();
+      try {
+        let commits = 0;
+        render(
+          React.createElement(
+            React.Profiler,
+            { id: "floating", onRender: () => { commits += 1; } },
+            React.createElement(FloatingWindow, defaultProps),
+          ),
+        );
+        const { requestId, entry } = connectedPort();
+        commits = 0;
+
+        for (let i = 0; i < 400; i++) {
+          act(() => {
+            entry.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "a" });
+            vi.advanceTimersByTime(5);
+          });
+        }
+        act(() => {
+          entry.onMessage.trigger({ type: "AI_STREAM_DONE", requestId });
+        });
+
+        expect(commits).toBeGreaterThan(0);
+        expect(commits).toBeLessThanOrEqual(25);
+        expect(screen.getByText("a".repeat(400))).toBeInTheDocument();
+        expect(screen.getByText("AI Assistant")).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("delivers buffered text when DONE arrives inside the flush window", () => {
+      render(React.createElement(FloatingWindow, defaultProps));
+      const { requestId, entry } = connectedPort();
+
+      act(() => {
+        entry.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Phần 1. " });
+        entry.onMessage.trigger({ type: "AI_STREAM_CHUNK", requestId, delta: "Phần 2." });
+        entry.onMessage.trigger({ type: "AI_STREAM_DONE", requestId });
+      });
+
+      expect(screen.getByText("Phần 1. Phần 2.")).toBeInTheDocument();
+      expect(screen.getByText("AI Assistant")).toBeInTheDocument();
+    });
+
+    it("sends devContext only when the devMode prop is set, regardless of toolTrace", () => {
+      const toolTrace = {
+        requestId: "tool-1",
+        tool: "selection-action" as const,
+        status: "success" as const,
+        startedAt: 1000,
+        finishedAt: 1200,
+        metadata: {},
+      };
+
+      const { unmount } = render(React.createElement(FloatingWindow, { ...defaultProps, toolTrace }));
+      expect(connectedPort().port.postMessage.mock.calls[0][0]).not.toHaveProperty("devContext");
+      unmount();
+
+      render(React.createElement(FloatingWindow, { ...defaultProps, requestId: "req-dev", devMode: true }));
+      expect(connectedPort().port.postMessage.mock.calls[0][0]).toMatchObject({
+        devContext: { surface: "floating", feature: "chat" },
+      });
+    });
+  });
 });

@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAiStream } from "../../../src/hooks/useAiStream";
+import { createAiTraceHandlers, useAiStream } from "../../../src/hooks/useAiStream";
 import { buildUserChatMessages } from "../../../src/core/prompts/builders";
 import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
+import { DebugDetails } from "../../../src/components/devtools/DebugDetails";
+import type { AiDevTrace } from "../../../src/core/devtools/types";
+import { AI_DISCONNECTED_ERROR, CHAT_SETTINGS } from "../../../src/constants";
 
 type QAMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  debug?: AiDevTrace;
 };
 
 const PRESET_QUESTIONS = [
@@ -18,9 +22,10 @@ const PRESET_QUESTIONS = [
 type QATabProps = {
   pageContent: string;
   prefillQuestion?: string;
+  devMode?: boolean;
 };
 
-export function QATab({ pageContent, prefillQuestion }: QATabProps) {
+export function QATab({ pageContent, prefillQuestion, devMode = false }: QATabProps) {
   const [messages, setMessages] = useState<QAMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -38,28 +43,44 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const { start } = useAiStream({
-    onChunk: (delta) => {
-      const id = activeAssistantIdRef.current;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, content: m.content + delta } : m
-        )
-      );
-      setTimeout(scrollToBottom, 50);
+  // Cập nhật tin trả lời đang stream; id được lấy ngay lúc gọi
+  function updateActiveMessage(update: (message: QAMessage) => QAMessage) {
+    const id = activeAssistantIdRef.current;
+    if (!id) return;
+    setMessages((prev) => prev.map((m) => (m.id === id ? update(m) : m)));
+  }
+
+  const { endTrace, ...traceHandlers } = createAiTraceHandlers((update) =>
+    updateActiveMessage((m) => {
+      const debug = update(m.debug);
+      return debug === m.debug ? m : { ...m, debug };
+    })
+  );
+
+  const { start } = useAiStream(
+    {
+      ...traceHandlers,
+      onChunk: (delta) => {
+        updateActiveMessage((m) => ({ ...m, content: m.content + delta }));
+        setTimeout(scrollToBottom, 50);
+      },
+      onDone: (trace) => {
+        endTrace(trace ? { trace } : { status: "success", now: Date.now() });
+        setStreaming(false);
+      },
+      onError: (message, trace) => {
+        updateActiveMessage((m) => ({ ...m, content: `Lỗi: ${message}` }));
+        endTrace(trace ? { trace } : { error: message, status: "error", now: Date.now() });
+        setStreaming(false);
+      },
+      onDisconnect: () => {
+        const message = chrome.runtime.lastError?.message || AI_DISCONNECTED_ERROR;
+        endTrace({ error: message, status: "interrupted", now: Date.now() });
+        setStreaming(false);
+      },
     },
-    onDone: () => setStreaming(false),
-    onError: (message) => {
-      const id = activeAssistantIdRef.current;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, content: `Lỗi: ${message}` } : m
-        )
-      );
-      setStreaming(false);
-    },
-    onDisconnect: () => setStreaming(false),
-  });
+    { flushMs: CHAT_SETTINGS.STREAM_FLUSH_MS },
+  );
 
   const sendQuestion = useCallback((question: string) => {
     if (!question.trim() || streaming) return;
@@ -80,8 +101,13 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
 
     const messages = buildUserChatMessages(contextPrompt, []);
 
-    start({ requestId, sessionId: sessionIdRef.current, messages });
-  }, [pageContent, streaming, start]);
+    start({
+      requestId,
+      sessionId: sessionIdRef.current,
+      messages,
+      ...(devMode ? { devContext: { surface: "reader", feature: "reader-qa" } } : {}),
+    });
+  }, [pageContent, streaming, start, devMode]);
 
   return (
     <div className="flex h-full flex-col">
@@ -102,23 +128,29 @@ export function QATab({ pageContent, prefillQuestion }: QATabProps) {
           </div>
         )}
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`rounded-xl px-3 py-2 text-[13px] leading-relaxed ${
-              msg.role === "user"
-                ? "ml-4 bg-primary/20 text-stone-100 rounded-br-none"
-                : "mr-4 bg-surface border border-stone-850 text-stone-300 rounded-bl-none"
-            }`}
-          >
-            {msg.content ? (
-              <MessageContent content={msg.content} />
-            ) : msg.role === "assistant" && streaming ? (
-              <span className="inline-flex gap-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0s" }} />
-                <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.2s" }} />
-                <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.4s" }} />
-              </span>
-            ) : null}
+          <div key={msg.id}>
+            <div
+              className={`rounded-xl px-3 py-2 text-[13px] leading-relaxed ${
+                msg.role === "user"
+                  ? "ml-4 bg-primary/20 text-stone-100 rounded-br-none"
+                  : "mr-4 bg-surface border border-stone-850 text-stone-300 rounded-bl-none"
+              }`}
+            >
+              {msg.content ? (
+                <MessageContent content={msg.content} />
+              ) : msg.role === "assistant" && streaming ? (
+                <span className="inline-flex gap-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0s" }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.2s" }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.4s" }} />
+                </span>
+              ) : null}
+            </div>
+            {msg.debug && (
+              <div className="mr-4">
+                <DebugDetails trace={msg.debug} compact />
+              </div>
+            )}
           </div>
         ))}
         <div ref={messagesEndRef} />

@@ -41,3 +41,6 @@ export const EVENTS = {
 
 // Thông báo lỗi kết nối dùng chung cho các luồng stream AI
 export const AI_CONNECT_ERROR = "Không thể kết nối dịch vụ AI.";
+
+// Port bị ngắt từ phía background trước khi stream kết thúc
+export const AI_DISCONNECTED_ERROR = "Mất kết nối.";

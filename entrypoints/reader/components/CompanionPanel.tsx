@@ -9,10 +9,12 @@ export function CompanionPanel({
   pageContent,
   title,
   url,
+  devMode = false,
 }: {
   pageContent: string;
   title: string;
   url: string;
+  devMode?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<CompanionTab>("summary");
   const [prefillQuestion, setPrefillQuestion] = useState("");
@@ -52,9 +54,9 @@ export function CompanionPanel({
       </div>
       <div className="flex-1 overflow-auto">
         {activeTab === "summary" ? (
-          <SummaryTab pageContent={pageContent} title={title} url={url} />
+          <SummaryTab pageContent={pageContent} title={title} url={url} devMode={devMode} />
         ) : (
-          <QATab pageContent={pageContent} prefillQuestion={prefillQuestion} />
+          <QATab pageContent={pageContent} prefillQuestion={prefillQuestion} devMode={devMode} />
         )}
       </div>
     </aside>

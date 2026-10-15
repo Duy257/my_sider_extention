@@ -20,14 +20,19 @@ ExtensionMessage =
   | { type: "CONTENT_AGENT_READY" }
   | { type: "EXTRACT_PAGE_CONTENT" }
   | { type: "TEST_CONNECTION"; requestId }
-  | { type: "FORWARD_SELECTION_ACTION"; requestId; prompt; title }
+  | { type: "FORWARD_SELECTION_ACTION"; requestId; messages; title; actionPosition; devMode?; toolTrace? }
 
 // Message gửi qua Port (streaming bidirectional)
-AiPortRequest = { type: "AI_CHAT_REQUEST"; requestId; messages: AiMessage[] }
+AiPortRequest = { type: "AI_CHAT_REQUEST"; requestId; sessionId?; messages: AiMessage[]; thinkingMode?; devContext? }
 AiPortResponse =
+  | { type: "AI_STREAM_CONNECTING"; requestId }
+  | { type: "AI_STREAM_FIRST_TOKEN"; requestId; at?; kind?: "reasoning" | "text" }
+  | { type: "AI_STREAM_DEBUG_START"; requestId; trace }          // chỉ khi dev mode + devContext
+  | { type: "AI_STREAM_REASONING"; requestId; delta }            // chỉ khi dev mode + devContext
   | { type: "AI_STREAM_CHUNK"; requestId; delta }
-  | { type: "AI_STREAM_DONE"; requestId }
-  | { type: "AI_STREAM_ERROR"; requestId; message }
+  | { type: "AI_STREAM_DEBUG_UPDATE"; requestId; usage?; finishReason? }
+  | { type: "AI_STREAM_DONE"; requestId; trace? }                // trace không kèm thinking.content
+  | { type: "AI_STREAM_ERROR"; requestId; message; trace? }
 
 // Response types
 PageExtractionResponse = { title; content; url } | { error }
@@ -53,6 +58,11 @@ LoadModelsResponse = { ok: true; models: string[] } | { ok: false; error }
 2. Gửi `AiPortRequest` qua port.postMessage
 3. Background gửi nhiều `AiPortResponse` (chunk/done/error) qua port
 4. Mỗi request có `requestId` riêng để phân biệt concurrent streams
+5. UI dùng chung hook `src/hooks/useAiStream.ts`; tùy chọn `flushMs` gom `CHUNK`/`REASONING`
+   (delta đầu đẩy ra ngay, sau đó tối đa một lần mỗi `flushMs`), và luôn đẩy hết delta đang gom
+   trước khi xử lý `DONE`/`ERROR`/mất kết nối
+6. Nếu port bị ngắt trước `DONE`/`ERROR` (background không gửi gì thêm), UI tự chốt trace với
+   status `interrupted`; người dùng bấm dừng thì status `cancelled`
 
 ## Dependencies
 

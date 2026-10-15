@@ -1,7 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
 import { DebugDetails } from "../../../src/components/devtools/DebugDetails";
 import type { AiDevTrace } from "../../../src/core/devtools/types";
+import type { StreamingPhase } from "../hooks/useChatController";
+
+// Phase hiển thị khi tin assistant đang chờ nội dung
+export type PendingPhase = Exclude<StreamingPhase, "idle">;
+
+const PENDING_PHASE_LABELS: Record<PendingPhase, string> = {
+  connecting: "đang kết nối...",
+  thinking: "đang suy nghĩ...",
+  streaming: "đang trả lời..."
+};
 
 function RobotAvatar() {
   return (
@@ -17,15 +27,33 @@ function RobotAvatar() {
   );
 }
 
-export function ChatMessage(props: {
+function TypingDots({ phase }: { phase: PendingPhase }) {
+  return (
+    <div role="status">
+      <div className="flex items-center gap-1.5 h-3">
+        <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0s" }} />
+        <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.2s" }} />
+        <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.4s" }} />
+      </div>
+      <div className="mt-1 text-[10px] text-stone-500 font-medium tracking-wide">
+        {PENDING_PHASE_LABELS[phase]}
+      </div>
+    </div>
+  );
+}
+
+// memo: tin cũ đã xong giữ nguyên object nên không bị vẽ lại khi tin khác đang stream
+export const ChatMessage = memo(function ChatMessage(props: {
   role: "user" | "assistant" | "system";
   content: string;
   debug?: AiDevTrace;
-  onSave?: () => void | Promise<void>;
+  pendingPhase?: PendingPhase; // tin assistant đang stream và chưa có nội dung
+  onSave?: (content: string) => void | Promise<void>;
   onActionError?: (message: string) => void;
 }) {
   const isUser = props.role === "user";
   const isSystem = props.role === "system";
+  const hasContent = props.content.length > 0;
 
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -53,7 +81,7 @@ export function ChatMessage(props: {
   async function saveMessage() {
     if (!props.onSave) return;
     try {
-      await props.onSave();
+      await props.onSave(props.content);
       showTemporaryFeedback("saved");
     } catch {
       props.onActionError?.("Không thể lưu kết quả.");
@@ -65,6 +93,11 @@ export function ChatMessage(props: {
       if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     };
   }, []);
+
+  // Tin assistant rỗng, không chờ gì và không có trace (ví dụ bị hủy trước token đầu)
+  if (!isUser && !isSystem && !hasContent && !props.pendingPhase && !props.debug) {
+    return null;
+  }
 
   if (isSystem) {
     return (
@@ -80,57 +113,43 @@ export function ChatMessage(props: {
     <div className={`flex items-start gap-2.5 ${isUser ? "justify-end" : "justify-start"} animate-fade-in-up`}>
       {!isUser && <RobotAvatar />}
       <div className={`flex flex-col group ${isUser ? "items-end max-w-[85%]" : "items-start max-w-[85%]"}`}>
-        <div
-          className={`rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words transition-all duration-300 shadow-sm ${
-            isUser
-              ? "bg-primary text-white rounded-br-none shadow-primary/10 hover:shadow-primary/20 bg-gradient-to-br from-primary to-purple-600 hover:brightness-105"
-              : "bg-surface border border-stone-800/60 text-stone-100 rounded-bl-none hover:border-stone-700/80"
-          }`}
-        >
-          <MessageContent content={props.content} />
-        </div>
+        {hasContent || props.pendingPhase ? (
+          <div
+            className={`rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words transition-all duration-300 shadow-sm ${
+              isUser
+                ? "bg-primary text-white rounded-br-none shadow-primary/10 hover:shadow-primary/20 bg-gradient-to-br from-primary to-purple-600 hover:brightness-105"
+                : "bg-surface border border-stone-800/60 text-stone-100 rounded-bl-none hover:border-stone-700/80"
+            }`}
+          >
+            {hasContent ? <MessageContent content={props.content} /> : <TypingDots phase={props.pendingPhase!} />}
+          </div>
+        ) : null}
         {!isUser && (
           <>
-            <div className={`mt-1 flex items-center gap-1 opacity-60 transition-opacity duration-200 group-hover:opacity-100 ${isUser ? "justify-end" : "justify-start"}`}>
-              <button
-                className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
-                title="Sao chép"
-                onClick={copyMessage}
-              >
-                {copied ? "Đã sao chép" : "Sao chép"}
-              </button>
-              {props.onSave ? (
+            {hasContent ? (
+              <div className="mt-1 flex items-center gap-1 opacity-60 transition-opacity duration-200 group-hover:opacity-100 justify-start">
                 <button
                   className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
-                  title="Lưu"
-                  onClick={saveMessage}
+                  title="Sao chép"
+                  onClick={copyMessage}
                 >
-                  {saved ? "Đã lưu" : "Lưu kết quả"}
+                  {copied ? "Đã sao chép" : "Sao chép"}
                 </button>
-              ) : null}
-            </div>
+                {props.onSave ? (
+                  <button
+                    className="flex items-center gap-1 rounded-md border border-stone-800/40 bg-surface/50 px-2 py-1 text-[11px] font-medium text-stone-400 transition-all duration-200 hover:border-stone-700/60 hover:bg-surface hover:text-stone-200"
+                    title="Lưu"
+                    onClick={saveMessage}
+                  >
+                    {saved ? "Đã lưu" : "Lưu kết quả"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {props.debug && <DebugDetails trace={props.debug} />}
           </>
         )}
       </div>
     </div>
   );
-}
-
-export function TypingIndicator({ phase = "connecting" }: { phase?: "idle" | "connecting" | "streaming" }) {
-  return (
-    <div className="flex items-start gap-2.5 animate-fade-in-up">
-      <RobotAvatar />
-      <div className="rounded-2xl rounded-bl-none bg-surface border border-stone-800/60 px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-1.5 h-3">
-          <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0s" }} />
-          <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.2s" }} />
-          <div className="h-1.5 w-1.5 rounded-full bg-primary-light animate-bounce-dot" style={{ animationDelay: "0.4s" }} />
-        </div>
-        <div className="mt-1 text-[10px] text-stone-500 font-medium tracking-wide">
-          {phase === "connecting" ? "đang kết nối..." : "đang trả lời..."}
-        </div>
-      </div>
-    </div>
-  );
-}
+});

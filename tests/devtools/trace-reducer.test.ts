@@ -5,7 +5,9 @@ import {
   markFirstToken,
   applyDebugUpdate,
   finishAiTrace,
-  failAiTrace
+  failAiTrace,
+  mergeFinalTrace,
+  endAiTrace
 } from "../../src/core/devtools/trace-reducer";
 
 describe("trace-reducer", () => {
@@ -66,5 +68,36 @@ describe("trace-reducer", () => {
     expect(t1.error).toBe("Failed to fetch");
     expect(t1.finishedAt).toBe(2000);
     expect(baseTrace.status).toBe("pending");
+  });
+
+  it("mergeFinalTrace keeps the streamed reasoning when the final trace omits it", () => {
+    const streamed = appendReasoning(baseTrace, "Plan");
+    const final: AiDevTrace = {
+      ...baseTrace,
+      status: "success",
+      finishedAt: 3000,
+      thinking: { state: "returned", content: "" },
+      usage: { totalTokens: 42 }
+    };
+
+    expect(mergeFinalTrace(streamed, final)).toEqual({
+      ...final,
+      thinking: { state: "returned", content: "Plan" }
+    });
+    // Không có reasoning ở cả hai phía thì giữ trạng thái background gửi về
+    const noThinking = { ...final, thinking: { state: "not-returned" as const, content: "" } };
+    expect(mergeFinalTrace(baseTrace, noThinking).thinking).toEqual({ state: "not-returned", content: "" });
+  });
+
+  it("endAiTrace finalizes a pending trace locally and leaves finished traces untouched", () => {
+    const cancelled = endAiTrace(baseTrace, { error: "Đã hủy", status: "cancelled", now: 2500 });
+    expect(cancelled).toMatchObject({ status: "cancelled", error: "Đã hủy", finishedAt: 2500 });
+
+    const succeeded = endAiTrace(baseTrace, { status: "success", now: 2200 });
+    expect(succeeded).toMatchObject({ status: "success", finishedAt: 2200 });
+
+    const finished = finishAiTrace(baseTrace, 2000);
+    expect(endAiTrace(finished, { error: "late", status: "interrupted", now: 9000 })).toBe(finished);
+    expect(endAiTrace(undefined, { error: "x", status: "error", now: 1 })).toBeUndefined();
   });
 });

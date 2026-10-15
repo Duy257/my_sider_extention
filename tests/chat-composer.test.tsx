@@ -31,3 +31,16 @@ test("missing key banner visible when showMissingKeyBanner is true", () => {
   render(<ChatComposer disabled={true} onSend={() => {}} showMissingKeyBanner={true} />);
   expect(screen.getByText(/Thêm khóa API/)).toBeInTheDocument();
 });
+
+test("turns the send button into a stop button while sending", async () => {
+  const user = userEvent.setup();
+  const onStop = vi.fn();
+  render(<ChatComposer disabled={true} sending={true} onStop={onStop} onSend={() => {}} />);
+
+  expect(screen.queryByTitle("Gửi")).not.toBeInTheDocument();
+  const stopButton = screen.getByTitle("Dừng");
+  expect(stopButton).toBeEnabled();
+
+  await user.click(stopButton);
+  expect(onStop).toHaveBeenCalledTimes(1);
+});

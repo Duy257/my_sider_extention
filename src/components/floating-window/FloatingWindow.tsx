@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useAiStream } from "../../hooks/useAiStream";
+import { createAiTraceHandlers, useAiStream } from "../../hooks/useAiStream";
 import type { AiMessage } from "../../core/ai/types";
 import type { WindowState, StreamState } from "./types";
 import { WindowHeader } from "./WindowHeader";
@@ -7,10 +7,7 @@ import { FloatingChatMessage } from "./FloatingChatMessage";
 import type { ToolDevTrace, AiDevTrace } from "../../core/devtools/types";
 import { ToolTraceCard } from "../devtools/ToolTraceCard";
 import { DebugDetails } from "../devtools/DebugDetails";
-import {
-  appendReasoning,
-  applyDebugUpdate,
-} from "../../core/devtools/trace-reducer";
+import { AI_DISCONNECTED_ERROR, CHAT_SETTINGS } from "../../constants";
 import { useDraggable, useResizable } from "./hooks";
 
 const DEFAULT_WIDTH = 380;
@@ -84,6 +81,7 @@ export interface FloatingWindowProps {
   sessionId?: string;
   onClose: () => void;
   toolTrace?: ToolDevTrace;
+  devMode?: boolean; // bật dev trace cho request AI của cửa sổ này
 }
 
 export function FloatingWindow(props: FloatingWindowProps) {
@@ -153,45 +151,47 @@ export function FloatingWindow(props: FloatingWindowProps) {
   // AI stream via port (shared hook)
   const isDoneRef = useRef(false);
 
-  const { start, stop } = useAiStream({
-    onChunk: (delta) => {
-      setStreamState("streaming");
-      setResponseContent((prev) => prev + delta);
-    },
-    onDebugStart: (trace) => setAiTrace(trace),
-    onReasoning: (delta) => setAiTrace((prev) => (prev ? appendReasoning(prev, delta) : prev)),
-    onDebugUpdate: ({ usage, finishReason }) =>
-      setAiTrace((prev) => (prev ? applyDebugUpdate(prev, { usage, finishReason }) : prev)),
-    onDone: (trace) => {
-      isDoneRef.current = true;
-      setStreamState("done");
-      if (trace) {
-        setAiTrace(trace);
-      }
-    },
-    onError: (message, trace) => {
-      isDoneRef.current = true;
-      setStreamState("error");
-      setErrorMessage(message);
-      if (trace) {
-        setAiTrace(trace);
-      }
-    },
-    onDisconnect: () => {
-      if (chrome.runtime.lastError && !isDoneRef.current) {
-        setStreamState("error");
-        setErrorMessage(chrome.runtime.lastError.message || "Mất kết nối.");
-      }
-    },
-  });
+  const { endTrace, ...traceHandlers } = createAiTraceHandlers(setAiTrace);
 
-  // Bug [F6]: Stream start effect depends only on requestId, messages, start, stop (avoid toolTrace restarting stream)
-  const toolTraceRef = useRef(props.toolTrace);
-  toolTraceRef.current = props.toolTrace;
+  // Cửa sổ nổi chạy ngay trong trang web: gom delta để không render lại cho từng token
+  const { start, stop } = useAiStream(
+    {
+      ...traceHandlers,
+      onChunk: (delta) => {
+        setStreamState("streaming");
+        setResponseContent((prev) => prev + delta);
+      },
+      onDone: (trace) => {
+        isDoneRef.current = true;
+        setStreamState("done");
+        endTrace(trace ? { trace } : { status: "success", now: Date.now() });
+      },
+      onError: (message, trace) => {
+        isDoneRef.current = true;
+        setStreamState("error");
+        setErrorMessage(message);
+        endTrace(trace ? { trace } : { error: message, status: "error", now: Date.now() });
+      },
+      // Port bị ngắt từ phía background trước DONE/ERROR (ví dụ service worker bị dừng)
+      onDisconnect: () => {
+        if (isDoneRef.current) return;
+        isDoneRef.current = true;
+        const message = chrome.runtime.lastError?.message || AI_DISCONNECTED_ERROR;
+        setStreamState("error");
+        setErrorMessage(message);
+        endTrace({ error: message, status: "interrupted", now: Date.now() });
+      },
+    },
+    { flushMs: CHAT_SETTINGS.STREAM_FLUSH_MS },
+  );
+
+  // Bug [F6]: Stream start effect depends only on requestId, messages, start, stop (avoid devMode restarting stream)
+  const devModeRef = useRef(props.devMode);
+  devModeRef.current = props.devMode;
 
   useEffect(() => {
     isDoneRef.current = false;
-    const isDevModeActive = Boolean(toolTraceRef.current);
+    const isDevModeActive = devModeRef.current === true;
 
     start({
       requestId: props.requestId,

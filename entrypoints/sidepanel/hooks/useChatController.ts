@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { useAiStream } from "../../../src/hooks/useAiStream";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createAiTraceHandlers, useAiStream } from "../../../src/hooks/useAiStream";
 import { buildUserChatMessages } from "../../../src/core/prompts/builders";
 import type { AiDevContext, AiDevTrace, ToolDevTrace } from "../../../src/core/devtools/types";
-import { appendReasoning, applyDebugUpdate } from "../../../src/core/devtools/trace-reducer";
-import { CHAT_SETTINGS } from "../../../src/constants";
+import type { AiTraceEnding } from "../../../src/core/devtools/trace-reducer";
+import { DEV_COPY } from "../../../src/core/devtools/copy";
+import { AI_DISCONNECTED_ERROR, CHAT_SETTINGS } from "../../../src/constants";
 
 export type ChatMessageItem = {
   kind: "message";
@@ -17,7 +18,7 @@ export type ChatTimelineItem =
   | ChatMessageItem
   | { kind: "tool-trace"; id: string; trace: ToolDevTrace };
 
-export type StreamingPhase = "idle" | "connecting" | "streaming";
+export type StreamingPhase = "idle" | "connecting" | "thinking" | "streaming";
 
 export type UseChatControllerOptions = {
   canSend: boolean;
@@ -50,155 +51,85 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamingRef = useRef(false);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
-
-  // Throttling stream buffers
+  // Tin assistant đang nhận stream; null khi không có stream nào chạy
   const activeAssistantIdRef = useRef<string | null>(null);
-  const contentBufferRef = useRef("");
-  const reasoningBufferRef = useRef("");
-  const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  function setMessages(next: ChatTimelineItem[] | ((current: ChatTimelineItem[]) => ChatTimelineItem[])) {
+  // Ổn định reference để ChatMessage (memo) không bị vẽ lại mỗi lần flush
+  const setMessages = useCallback((next: ChatTimelineItem[] | ((current: ChatTimelineItem[]) => ChatTimelineItem[])) => {
     setMessagesState((current) => {
       const resolved = typeof next === "function" ? next(current) : next;
       messagesRef.current = resolved;
       return resolved;
     });
-  }
+  }, []);
 
-  function setError(message: string) {
+  const setError = useCallback((message: string) => {
     setErrorState(message);
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
     if (message && autoDismissErrorMs > 0) {
       errorTimerRef.current = setTimeout(() => setErrorState(""), autoDismissErrorMs);
     }
+  }, [autoDismissErrorMs]);
+
+  const dismissError = useCallback(() => setError(""), [setError]);
+
+  // Cập nhật tin assistant đang stream; id được lấy ngay lúc gọi, không phải lúc React chạy updater
+  function updateActiveMessage(update: (item: ChatMessageItem) => ChatMessageItem) {
+    const id = activeAssistantIdRef.current;
+    if (!id) return;
+    setMessages((current) =>
+      current.map((item) => (item.id === id && item.kind === "message" ? update(item) : item))
+    );
   }
 
-  function resetStreamState() {
+  const { endTrace, ...traceHandlers } = createAiTraceHandlers((update) =>
+    updateActiveMessage((item) => {
+      const debug = update(item.debug);
+      return debug === item.debug ? item : { ...item, debug };
+    })
+  );
+
+  // Kết thúc lượt stream: chốt trace (trace background gửi về, hoặc UI tự chốt) và reset trạng thái
+  function finishStream(ending: AiTraceEnding) {
+    endTrace(ending);
+    activeAssistantIdRef.current = null;
     streamingRef.current = false;
     setStreaming(false);
     setStreamingPhase("idle");
   }
 
-  const startFlushTimer = (id: string) => {
-    if (flushTimerRef.current) return;
-    flushTimerRef.current = setInterval(() => {
-      const contentDelta = contentBufferRef.current;
-      const reasoningDelta = reasoningBufferRef.current;
-
-      if (!contentDelta && !reasoningDelta) return;
-
-      contentBufferRef.current = "";
-      reasoningBufferRef.current = "";
-
-      setMessages((current) =>
-        current.map((item) => {
-          if (item.id === id && item.kind === "message") {
-            const updated = { ...item };
-            if (contentDelta) {
-              updated.content += contentDelta;
-            }
-            if (reasoningDelta && updated.debug) {
-              updated.debug = appendReasoning(updated.debug, reasoningDelta);
-            }
-            return updated;
-          }
-          return item;
-        })
-      );
-    }, CHAT_SETTINGS.STREAM_FLUSH_MS);
-  };
-
-  const stopFlushTimerAndFlush = (id: string | null, finalTrace?: AiDevTrace) => {
-    if (flushTimerRef.current) {
-      clearInterval(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-
-    const contentDelta = contentBufferRef.current;
-    const reasoningDelta = reasoningBufferRef.current;
-
-    contentBufferRef.current = "";
-    reasoningBufferRef.current = "";
-    activeAssistantIdRef.current = null;
-
-    if (!id) return;
-
-    setMessages((current) =>
-      current.map((item) => {
-        if (item.id === id && item.kind === "message") {
-          const updated = { ...item };
-          if (contentDelta) {
-            updated.content += contentDelta;
-          }
-          if (finalTrace) {
-            updated.debug = finalTrace;
-          } else if (reasoningDelta && updated.debug) {
-            updated.debug = appendReasoning(updated.debug, reasoningDelta);
-          }
-          return updated;
+  // Định tuyến stream events qua hook dùng chung; hook gom delta theo STREAM_FLUSH_MS
+  const { start: startAiStream, stop: stopAiStream } = useAiStream(
+    {
+      ...traceHandlers,
+      onConnecting: () => setStreamingPhase("connecting"),
+      onFirstToken: (info) => {
+        setStreamingPhase(info.kind === "reasoning" ? "thinking" : "streaming");
+        traceHandlers.onFirstToken(info);
+      },
+      onChunk: (delta) => {
+        setStreamingPhase("streaming");
+        updateActiveMessage((item) => ({ ...item, content: item.content + delta }));
+      },
+      onDone: (trace) => finishStream(trace ? { trace } : { status: "success", now: Date.now() }),
+      onError: (message, trace) => {
+        finishStream(trace ? { trace } : { error: message, status: "error", now: Date.now() });
+        setError(message);
+      },
+      onDisconnect: () => {
+        const lastError = chrome.runtime.lastError;
+        finishStream({ error: lastError?.message || AI_DISCONNECTED_ERROR, status: "interrupted", now: Date.now() });
+        if (lastError) {
+          setError(lastError.message || AI_DISCONNECTED_ERROR);
         }
-        return item;
-      })
-    );
-  };
-
-  // Định tuyến stream events qua hook dùng chung; controller chỉ lo buffer & state hiển thị
-  const { start: startAiStream, stop: stopAiStream } = useAiStream({
-    onConnecting: () => setStreamingPhase("connecting"),
-    onFirstToken: () => setStreamingPhase("streaming"),
-    onChunk: (delta) => {
-      setStreamingPhase("streaming");
-      contentBufferRef.current += delta;
-      const id = activeAssistantIdRef.current;
-      if (id) startFlushTimer(id);
-    },
-    onReasoning: (delta) => {
-      reasoningBufferRef.current += delta;
-      const id = activeAssistantIdRef.current;
-      if (id) startFlushTimer(id);
-    },
-    onDebugStart: (trace) => {
-      setMessages((current) =>
-        current.map((item) =>
-          item.id === activeAssistantIdRef.current && item.kind === "message" ? { ...item, debug: trace } : item
-        )
-      );
-    },
-    onDebugUpdate: ({ usage, finishReason }) => {
-      setMessages((current) =>
-        current.map((item) => {
-          if (item.id === activeAssistantIdRef.current && item.kind === "message" && item.debug) {
-            return {
-              ...item,
-              debug: applyDebugUpdate(item.debug, { usage, finishReason })
-            };
-          }
-          return item;
-        })
-      );
-    },
-    onDone: (finalTrace) => {
-      stopFlushTimerAndFlush(activeAssistantIdRef.current, finalTrace);
-      resetStreamState();
-    },
-    onError: (message) => {
-      stopFlushTimerAndFlush(activeAssistantIdRef.current);
-      resetStreamState();
-      setError(message);
-    },
-    onDisconnect: () => {
-      stopFlushTimerAndFlush(activeAssistantIdRef.current);
-      resetStreamState();
-      if (chrome.runtime.lastError) {
-        setError(chrome.runtime.lastError.message || "Mất kết nối.");
       }
-    }
-  });
+    },
+    { flushMs: CHAT_SETTINGS.STREAM_FLUSH_MS }
+  );
 
   function cancelStream() {
-    stopAiStream();
-    stopFlushTimerAndFlush(activeAssistantIdRef.current);
-    resetStreamState();
+    stopAiStream(); // đẩy nốt delta đang gom vào tin trước khi chốt trace
+    finishStream({ error: DEV_COPY.cancelledByUser, status: "cancelled", now: Date.now() });
   }
 
   function clearChat() {
@@ -224,8 +155,6 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
     const requestId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
     activeAssistantIdRef.current = assistantId;
-    contentBufferRef.current = "";
-    reasoningBufferRef.current = "";
 
     const chatMessages = messagesRef.current.filter((m): m is ChatMessageItem => m.kind === "message");
     const providerMessages = buildUserChatMessages(
@@ -251,7 +180,6 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
   useEffect(() => {
     return () => {
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-      if (flushTimerRef.current) clearInterval(flushTimerRef.current);
     };
   }, []);
 
@@ -263,7 +191,7 @@ export function useChatController({ canSend, autoDismissErrorMs = CHAT_SETTINGS.
     sendPrompt,
     cancelStream,
     clearChat,
-    dismissError: () => setError(""),
+    dismissError,
     setError,
     setMessages
   };

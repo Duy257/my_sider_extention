@@ -1,10 +1,13 @@
 import { useCallback, useRef, useState } from "react";
-import { useAiStream } from "../../../src/hooks/useAiStream";
+import { createAiTraceHandlers, useAiStream } from "../../../src/hooks/useAiStream";
 import {
   buildSummaryMessages,
   type SummaryLength,
 } from "../../../src/core/prompts/builders";
 import { MessageContent } from "../../../src/components/chat/MessageContent.tsx";
+import { DebugDetails } from "../../../src/components/devtools/DebugDetails";
+import type { AiDevTrace } from "../../../src/core/devtools/types";
+import { AI_DISCONNECTED_ERROR, CHAT_SETTINGS } from "../../../src/constants";
 
 const SUMMARY_LABELS: Record<SummaryLength, string> = {
   short: "1 câu",
@@ -16,14 +19,17 @@ export function SummaryTab({
   pageContent,
   title,
   url,
+  devMode = false,
 }: {
   pageContent: string;
   title: string;
   url: string;
+  devMode?: boolean;
 }) {
   const [length, setLength] = useState<SummaryLength>("short");
   const [summary, setSummary] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [trace, setTrace] = useState<AiDevTrace | undefined>(undefined);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
   const [sections] = useState<string[]>(() => {
     const headingMatches = pageContent.match(/<h[12][^>]*>([^<]+)<\/h[12]>/gi);
@@ -32,21 +38,36 @@ export function SummaryTab({
       : [];
   });
 
-  const { start } = useAiStream({
-    onChunk: (delta) => setSummary((prev) => prev + delta),
-    onDone: () => setStreaming(false),
-    onError: (message) => {
-      setSummary(message);
-      setStreaming(false);
+  const { endTrace, ...traceHandlers } = createAiTraceHandlers(setTrace);
+
+  const { start } = useAiStream(
+    {
+      ...traceHandlers,
+      onChunk: (delta) => setSummary((prev) => prev + delta),
+      onDone: (finalTrace) => {
+        setStreaming(false);
+        endTrace(finalTrace ? { trace: finalTrace } : { status: "success", now: Date.now() });
+      },
+      onError: (message, finalTrace) => {
+        setSummary(message);
+        setStreaming(false);
+        endTrace(finalTrace ? { trace: finalTrace } : { error: message, status: "error", now: Date.now() });
+      },
+      onDisconnect: () => {
+        setStreaming(false);
+        const message = chrome.runtime.lastError?.message || AI_DISCONNECTED_ERROR;
+        endTrace({ error: message, status: "interrupted", now: Date.now() });
+      },
     },
-    onDisconnect: () => setStreaming(false),
-  });
+    { flushMs: CHAT_SETTINGS.STREAM_FLUSH_MS },
+  );
 
   const generateSummary = useCallback(
     (sectionContext?: string) => {
       if (streaming) return;
       setStreaming(true);
       setSummary("");
+      setTrace(undefined);
 
       const requestId = crypto.randomUUID();
       const messages = buildSummaryMessages(
@@ -54,9 +75,14 @@ export function SummaryTab({
         length,
       );
 
-      start({ requestId, sessionId: sessionIdRef.current, messages });
+      start({
+        requestId,
+        sessionId: sessionIdRef.current,
+        messages,
+        ...(devMode ? { devContext: { surface: "reader", feature: "reader-summary" } } : {}),
+      });
     },
-    [length, pageContent, title, url, streaming, start],
+    [length, pageContent, title, url, streaming, start, devMode],
   );
 
   return (
@@ -117,6 +143,8 @@ export function SummaryTab({
           Đang kết nối...
         </div>
       ) : null}
+
+      {trace && <DebugDetails trace={trace} compact />}
     </div>
   );
 }

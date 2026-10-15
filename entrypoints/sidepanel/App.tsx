@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getProvider } from "../../src/core/ai/providers";
 import { getPromptTemplates, getSavedResults, getSettings, savePromptTemplates, saveSavedResults, saveSettings } from "../../src/core/storage";
 import type { PromptTemplate } from "../../src/core/prompts/types";
 import type { SavedResult, Settings } from "../../src/core/storage/types";
 import { ChatComposer } from "./components/ChatComposer";
-import { ChatMessage, TypingIndicator } from "./components/ChatMessage";
+import { ChatMessage } from "./components/ChatMessage";
 import { HeaderBar, type HeaderView } from "./components/HeaderBar";
 import { PromptManager } from "./components/PromptManager";
 import { SavedResults } from "./components/SavedResults";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SkeletonPanel } from "./components/Skeleton";
 import { EmptyState } from "./components/EmptyState";
-import { useChatController, type ChatMessageItem } from "./hooks/useChatController";
+import { useChatController } from "./hooks/useChatController";
+import { useStickToBottom } from "./hooks/useStickToBottom";
 import { ToolTraceCard } from "../../src/components/devtools/ToolTraceCard";
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
   }, [settings, provider, selectedModel]);
 
   const chat = useChatController({ canSend: Boolean(settings && provider && !missingApiKey && !missingModel) });
+  const stickToBottomRef = useStickToBottom();
 
   useEffect(() => {
     Promise.all([getSettings(), getPromptTemplates(), getSavedResults()]).then(([loadedSettings, loadedPrompts, loadedSaved]) => {
@@ -47,7 +49,13 @@ export default function App() {
     chrome.runtime.sendMessage({ type: "ACTIVATE_ACTIVE_TAB_AGENT", requestId: crypto.randomUUID() }).catch(() => undefined);
   }, []);
 
-  const sendPromptRef = useRef(chat.sendPrompt);
+  // Gửi tin mới luôn kéo về đáy, kể cả khi người dùng đang cuộn lên đọc tin cũ
+  function sendChatPrompt(text: string, thinkingMode?: Settings["thinkingMode"]) {
+    stickToBottomRef.current = true;
+    chat.sendPrompt(text, thinkingMode, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined);
+  }
+
+  const sendPromptRef = useRef(sendChatPrompt);
 
   async function updateSettings(next: Settings) {
     setSettings(next);
@@ -66,29 +74,33 @@ export default function App() {
     }
   }
 
-  sendPromptRef.current = chat.sendPrompt;
+  sendPromptRef.current = sendChatPrompt;
 
   useEffect(() => {
     function handleMessage(msg: { type: string; prompt?: string }) {
       if (msg.type === "FORWARD_SELECTION_ACTION" && msg.prompt) {
         setView("chat");
-        sendPromptRef.current(msg.prompt, undefined, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined);
+        sendPromptRef.current(msg.prompt);
       }
     }
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [settings?.devMode]);
+  }, []);
 
+  // Chỉ bám đáy khi người dùng đang ở gần đáy, để có thể cuộn lên đọc tin cũ trong lúc stream
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.messages, chat.streamingPhase]);
+    if (stickToBottomRef.current) {
+      chatEndRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [chat.messages, chat.streamingPhase, stickToBottomRef]);
 
-  async function saveMessage(item: ChatMessageItem) {
+  // Reference ổn định để ChatMessage (memo) không bị vẽ lại khi tin khác đang stream
+  const saveMessage = useCallback(async (content: string) => {
     const newResult: SavedResult = {
       id: crypto.randomUUID(),
-      title: item.content.slice(0, 60) || "Phản hồi đã lưu",
+      title: content.slice(0, 60) || "Phản hồi đã lưu",
       sourceType: "chat" as const,
-      outputMarkdown: item.content,
+      outputMarkdown: content,
       createdAt: new Date().toISOString()
     };
     setSavedResultsState((prev) => {
@@ -100,7 +112,7 @@ export default function App() {
       });
       return updated;
     });
-  }
+  }, []);
 
   if (!settings) {
     return (
@@ -162,48 +174,49 @@ export default function App() {
       
       {view === "chat" ? (
         <>
-          <section className="flex-1 space-y-3.5 overflow-auto p-3.5" aria-live="polite" aria-relevant="additions">
+          {/* aria-busy: trình đọc màn hình chờ stream xong mới đọc, thay vì đọc từng đoạn mới */}
+          <section
+            className="flex-1 space-y-3.5 overflow-auto p-3.5"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-busy={chat.streaming}
+          >
             {chat.messages.length === 0 ? (
-              <EmptyState onChipClick={(text) => chat.sendPrompt(text, undefined, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined)} />
+              <EmptyState onChipClick={(text) => sendChatPrompt(text)} />
             ) : (
-              chat.messages.map((item) => {
+              chat.messages.map((item, index) => {
                 if (item.kind === "tool-trace") {
                   return <ToolTraceCard key={item.id} trace={item.trace} />;
                 }
+                // Chỉ tin cuối, đang stream và chưa có nội dung mới hiện chỉ báo phase
+                const pendingPhase =
+                  chat.streaming &&
+                  chat.streamingPhase !== "idle" &&
+                  index === chat.messages.length - 1 &&
+                  item.role === "assistant" &&
+                  !item.content
+                    ? chat.streamingPhase
+                    : undefined;
                 return (
-                  <ChatMessage 
-                    key={item.id} 
-                    role={item.role} 
-                    content={item.content} 
+                  <ChatMessage
+                    key={item.id}
+                    role={item.role}
+                    content={item.content}
                     debug={item.debug}
-                    onSave={item.role === "assistant" ? () => saveMessage(item) : undefined}
+                    pendingPhase={pendingPhase}
+                    onSave={item.role === "assistant" ? saveMessage : undefined}
                     onActionError={chat.setError}
                   />
                 );
               })
             )}
-            {(() => {
-              const last = chat.messages[chat.messages.length - 1];
-              return chat.streaming && chat.messages.length > 0 && last?.kind === "message" && last.content === "" ? (
-                <TypingIndicator phase={chat.streamingPhase} />
-              ) : null;
-            })()}
-            {chat.streaming && chat.streamingPhase === "connecting" && (
-              <div className="flex justify-center">
-                <button
-                  onClick={chat.cancelStream}
-                  className="text-xs text-stone-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg border border-stone-800/50 hover:border-red-900/30 hover:bg-red-950/10"
-                >
-                  Hủy yêu cầu
-                </button>
-              </div>
-            )}
             <div ref={chatEndRef} />
           </section>
-          
+
           <ChatComposer
             disabled={chat.streaming || missingApiKey || missingModel}
-            onSend={(text, thinkingMode) => chat.sendPrompt(text, thinkingMode, settings?.devMode ? { surface: "sidepanel", feature: "chat" } : undefined)}
+            onSend={sendChatPrompt}
+            onStop={chat.cancelStream}
             showMissingKeyBanner={missingApiKey || missingModel}
             missingType={missingApiKey ? "key" : "model"}
             providerLabel={provider?.label}

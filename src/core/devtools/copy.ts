@@ -12,6 +12,7 @@ export const DEV_COPY = {
   copied: "Đã sao chép",
   tool: "TOOL",
   status: "STATUS",
+  cancelledByUser: "Người dùng đã hủy yêu cầu.",
   metadataLabels: {
     extractor: "Trình trích xuất",
     contentChars: "Số ký tự",

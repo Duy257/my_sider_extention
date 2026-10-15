@@ -74,3 +74,34 @@ test("renders DebugDetails only when debug trace is present in assistant message
   rerender(<ChatMessage role="assistant" content="Response" debug={debugTrace} />);
   expect(screen.getByText(/DEV/)).toBeInTheDocument();
 });
+
+test("shows the thinking indicator inside an empty pending assistant message without action buttons", () => {
+  render(<ChatMessage role="assistant" content="" pendingPhase="thinking" onSave={() => {}} />);
+
+  expect(screen.getByText("đang suy nghĩ...")).toBeInTheDocument();
+  expect(screen.queryByTitle("Sao chép")).not.toBeInTheDocument();
+  expect(screen.queryByTitle("Lưu")).not.toBeInTheDocument();
+});
+
+test("labels each pending phase", () => {
+  const { rerender } = render(<ChatMessage role="assistant" content="" pendingPhase="connecting" />);
+  expect(screen.getByText("đang kết nối...")).toBeInTheDocument();
+
+  rerender(<ChatMessage role="assistant" content="" pendingPhase="streaming" />);
+  expect(screen.getByText("đang trả lời...")).toBeInTheDocument();
+});
+
+test("renders nothing for an empty assistant message that is not pending and has no trace", () => {
+  const { container } = render(<ChatMessage role="assistant" content="" />);
+  expect(container).toBeEmptyDOMElement();
+});
+
+test("passes the message content to onSave", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn(() => Promise.resolve());
+
+  render(<ChatMessage role="assistant" content="Nội dung lưu" onSave={onSave} />);
+  await user.click(screen.getByTitle("Lưu"));
+
+  expect(onSave).toHaveBeenCalledWith("Nội dung lưu");
+});

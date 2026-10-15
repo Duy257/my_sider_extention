@@ -1,7 +1,8 @@
 import type { Config } from "tailwindcss";
 
 export default {
-  content: ["./entrypoints/**/*.{html,ts,tsx}"],
+  // src/ chứa component dùng chung (DebugDetails, message renderers) nên cũng phải được quét
+  content: ["./entrypoints/**/*.{html,ts,tsx}", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {

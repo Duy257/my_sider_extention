@@ -95,14 +95,36 @@ describe("background-trace AI Traces", () => {
       finishReason: "stop"
     });
 
-    // Finish
+    // Finish: trace gửi kèm DONE không lặp lại reasoning (UI đã nhận qua AI_STREAM_REASONING)
     const finalTrace = emitter.onDone();
     expect(finalTrace.status).toBe("success");
     expect(finalTrace.finishedAt).toBe(2000);
-    expect(finalTrace.thinking.content).toBe("Plan");
+    expect(finalTrace.thinking).toEqual({ state: "returned", content: "" });
   });
 
-  it("finalizes status correctly on error/cancellation and retains reasoning", () => {
+  it("onFirstToken returns the first-token timestamp so background can send it to the UI", () => {
+    const trace = createAiTrace({
+      requestId: "req-1",
+      context,
+      runtime,
+      thinkingMode: "off",
+      now: 1000
+    });
+    const emitter = createAiPortTraceEmitter({
+      trace,
+      send: vi.fn(),
+      now: vi.fn().mockReturnValueOnce(1250).mockReturnValue(3000)
+    });
+
+    const at = emitter.onFirstToken();
+    expect(at).toBe(1250);
+    expect(at).toBeGreaterThanOrEqual(trace.startedAt);
+
+    const finalTrace = emitter.onDone();
+    expect(finalTrace.firstTokenAt).toBe(1250);
+  });
+
+  it("finalizes status correctly on error/cancellation without resending reasoning", () => {
     const trace = createAiTrace({
       requestId: "req-1",
       context,
@@ -126,7 +148,7 @@ describe("background-trace AI Traces", () => {
     expect(finalTrace.status).toBe("cancelled");
     expect(finalTrace.finishedAt).toBe(1500);
     expect(finalTrace.error).toBe("Cancelled by user");
-    expect(finalTrace.thinking.content).toBe("Partial reasoning");
+    expect(finalTrace.thinking).toEqual({ state: "returned", content: "" });
   });
 });
 

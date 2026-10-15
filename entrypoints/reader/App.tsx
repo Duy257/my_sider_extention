@@ -8,6 +8,7 @@ import type { SelectionInfo } from "./types";
 import { ToolTraceCard } from "../../src/components/devtools/ToolTraceCard";
 import type { ToolDevTrace } from "../../src/core/devtools/types";
 import type { ExtensionMessage } from "../../src/core/messaging/types";
+import { getSettings } from "../../src/core/storage";
 import { EVENTS, EXTRACTION_LIMITS } from "../../src/constants";
 
 type PageData = {
@@ -33,6 +34,14 @@ export default function App() {
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const [toolTrace, setToolTrace] = useState<ToolDevTrace | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(false);
+
+  // Dev mode quyết định reader có gửi devContext để background tạo AI trace hay không
+  useEffect(() => {
+    getSettings()
+      .then((settings) => setDevMode(settings.devMode))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -157,6 +166,7 @@ export default function App() {
             pageContent={pageData.content}
             title={pageData.title}
             url={pageData.url}
+            devMode={devMode}
           />
         </aside>
       </div>
@@ -180,6 +190,7 @@ export default function App() {
               pageContent={pageData.content}
               title={pageData.title}
               url={pageData.url}
+              devMode={devMode}
             />
           </div>
         </div>

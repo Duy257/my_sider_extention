@@ -33,7 +33,9 @@ describe("DebugDetails component", () => {
     render(<DebugDetails trace={baseTrace} />);
     const region = screen.getByRole("region", { name: "AI dev trace" });
     expect(region).toBeInTheDocument();
-    expect(region).toHaveAttribute("aria-live", "polite");
+    // aria-live không bọc cả section (tránh đọc từng đoạn reasoning); chỉ vùng status nhỏ là live
+    expect(region).not.toHaveAttribute("aria-live");
+    expect(region.querySelector("[aria-live='polite']")).toHaveTextContent("success");
 
     const button = screen.getByRole("button");
     
@@ -183,5 +185,98 @@ describe("DebugDetails component", () => {
     fireEvent.click(button); // expand
 
     expect(screen.getByText(DEV_COPY.unavailableUsage)).toBeInTheDocument();
+  });
+});
+
+describe("DebugDetails streaming behaviour", () => {
+  const pendingTrace: AiDevTrace = {
+    requestId: "req-stream",
+    surface: "sidepanel",
+    feature: "chat",
+    status: "pending",
+    providerId: "openai",
+    model: "gpt-4o",
+    requestedThinkingMode: "high",
+    effectiveRequestParams: {},
+    startedAt: 1000,
+    thinking: { state: "returned", content: "Bước 1" }
+  };
+
+  function getThinkingPre(container: HTMLElement) {
+    return Array.from(container.querySelectorAll("pre")).find((pre) =>
+      pre.textContent?.startsWith("Bước 1")
+    ) as HTMLPreElement;
+  }
+
+  // jsdom không có layout: gán kích thước cuộn cho <pre> bằng defineProperty
+  function mockScrollBox(el: HTMLElement, box: { scrollHeight: number; clientHeight: number }) {
+    Object.defineProperty(el, "scrollHeight", { configurable: true, value: box.scrollHeight });
+    Object.defineProperty(el, "clientHeight", { configurable: true, value: box.clientHeight });
+  }
+
+  it("auto-closes the panel it opened when the trace finishes", () => {
+    const { rerender } = render(<DebugDetails trace={pendingTrace} />);
+    const toggle = screen.getByRole("button", { name: new RegExp(DEV_COPY.summaryPrefix) });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    rerender(<DebugDetails trace={{ ...pendingTrace, status: "success", finishedAt: 3000 }} />);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps the panel open on finish when the user toggled it manually", () => {
+    const { rerender } = render(<DebugDetails trace={pendingTrace} />);
+    const toggle = screen.getByRole("button", { name: new RegExp(DEV_COPY.summaryPrefix) });
+
+    fireEvent.click(toggle); // người dùng đóng
+    fireEvent.click(toggle); // rồi tự mở lại
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    rerender(<DebugDetails trace={{ ...pendingTrace, status: "cancelled", finishedAt: 3000 }} />);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("ticks the elapsed time every second while pending", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    try {
+      render(<DebugDetails trace={pendingTrace} />);
+      const toggle = screen.getByRole("button", { name: new RegExp(DEV_COPY.summaryPrefix) });
+      expect(toggle).toHaveTextContent("0.0 s");
+
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(toggle).toHaveTextContent("2.0 s");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not start an interval for a finished trace", () => {
+    const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    render(<DebugDetails trace={{ ...pendingTrace, status: "success", finishedAt: 2000 }} />);
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+  });
+
+  it("keeps the reasoning box scrolled to the newest content while streaming", () => {
+    const { container, rerender } = render(<DebugDetails trace={pendingTrace} />);
+    const pre = getThinkingPre(container);
+    mockScrollBox(pre, { scrollHeight: 600, clientHeight: 240 });
+
+    rerender(<DebugDetails trace={{ ...pendingTrace, thinking: { state: "returned", content: "Bước 1\nBước 2" } }} />);
+    expect(pre.scrollTop).toBe(600);
+  });
+
+  it("stops following new reasoning after the user scrolls up inside the box", () => {
+    const { container, rerender } = render(<DebugDetails trace={pendingTrace} />);
+    const pre = getThinkingPre(container);
+    mockScrollBox(pre, { scrollHeight: 600, clientHeight: 240 });
+
+    pre.scrollTop = 50;
+    fireEvent.scroll(pre);
+
+    rerender(<DebugDetails trace={{ ...pendingTrace, thinking: { state: "returned", content: "Bước 1\nBước 2" } }} />);
+    expect(pre.scrollTop).toBe(50);
   });
 });

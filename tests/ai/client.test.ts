@@ -242,6 +242,8 @@ describe("streamChatCompletion", () => {
     });
 
     expect(onFirstToken).toHaveBeenCalledOnce();
+    // Reasoning đến trước text nên token đầu được báo là "reasoning"
+    expect(onFirstToken).toHaveBeenCalledWith("reasoning");
     expect(deltas).toEqual(["Answer"]);
     expect(reasoningDeltas).toEqual(["Plan"]);
     expect(usages).toEqual([{ inputTokens: 12, outputTokens: 7, totalTokens: 19 }]);

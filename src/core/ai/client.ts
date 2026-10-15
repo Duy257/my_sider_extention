@@ -38,7 +38,7 @@ type CompletionRequest = {
 // Callbacks cho quá trình stream AI
 type StreamCallbacks = {
   onConnecting?: () => void; // đang kết nối đến provider
-  onFirstToken?: () => void; // nhận được token đầu tiên
+  onFirstToken?: (kind: "reasoning" | "text") => void; // nhận được token đầu tiên (reasoning hoặc text)
   onDelta: (delta: string) => void; // nhận được một phần nội dung text
   onReasoningDelta?: (delta: string) => void;
   onUsage?: (usage: TokenUsage) => void;
@@ -78,10 +78,10 @@ export async function streamChatCompletion(input: CompletionRequest & {
   const { callbacks } = input;
   let hasReceivedFirstToken = false;
 
-  function markFirstActivity() {
+  function markFirstActivity(kind: "reasoning" | "text") {
     if (hasReceivedFirstToken) return;
     hasReceivedFirstToken = true;
-    safeInvoke(() => callbacks.onFirstToken?.());
+    safeInvoke(() => callbacks.onFirstToken?.(kind));
   }
 
   try {
@@ -104,14 +104,14 @@ export async function streamChatCompletion(input: CompletionRequest & {
 
         case "reasoning-delta":
           if (part.text) {
-            markFirstActivity();
+            markFirstActivity("reasoning");
             safeInvoke(() => callbacks.onReasoningDelta?.(part.text));
           }
           break;
 
         case "text-delta":
           if (part.text) {
-            markFirstActivity();
+            markFirstActivity("text");
             safeInvoke(() => callbacks.onDelta(part.text));
           }
           break;
