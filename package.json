@@ -18,14 +18,17 @@
     "bump": "sh scripts/bump-version.sh"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.69",
     "@mozilla/readability": "^0.6.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "ai": "^7.0.141",
     "jsdom": "^29.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/chrome": "^0.2.0",

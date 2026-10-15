@@ -8,7 +8,8 @@ Chrome Manifest V3 browser extension (Personal AI Sidebar) — private AI assist
 - **UI**: React 19 + Tailwind CSS 3
 - **Language**: TypeScript 5 (strict mode)
 - **Testing**: Vitest + jsdom + React Testing Library
-- **AI Providers**: OpenAI, OpenCode, CommandCode, LMStudio (extensible via `providers.json`)
+- **AI Providers**: OpenAI, OpenCode, CommandCode, LMStudio, OpenRouter (extensible via `providers.json`)
+- **AI SDK**: Vercel AI SDK v7 (`ai` + `@ai-sdk/openai-compatible`) — runs inside the MV3 service worker (`@mastra/core` cannot: it needs Node built-ins)
 - **Storage**: `chrome.storage.local` with versioned envelopes (`schemaVersion` + `data`)
 - **Supported browsers**: Chrome (primary), Firefox
 
@@ -25,7 +26,7 @@ entrypoints/
     └── components/        — ChatComposer, ChatMessage, HeaderBar, SettingsPanel, PromptManager, SavedResults, etc.
 src/
 ├── lib/
-│   ├── ai/                — client.ts (stream/fetch), providers.ts (registry), runtime.ts (config resolver), stream.ts (error mapping), providers.json
+│   ├── ai/                — client.ts (streamText/generateText + fetchModels), model.ts (AI SDK model factory), http.ts (fetch timeout, headers), providers.ts (registry), runtime.ts (config resolver), stream.ts (error mapping), providers.json
 │   ├── extraction/        — index.ts (orchestrator), readability.ts (via @mozilla/readability), fallback.ts (DOM text)
 │   ├── messaging/         — ports.ts, types.ts (all message type definitions)
 │   ├── prompts/           — builders.ts (system/user prompt builders), seeds.ts (default templates), types.ts

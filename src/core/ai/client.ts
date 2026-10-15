@@ -1,32 +1,21 @@
-// === AI CLIENT — HTTP Request, Streaming, Kiểm tra kết nối, Lấy danh sách Model ===
+// === AI CLIENT — Streaming, Completion, Kiểm tra kết nối, Lấy danh sách Model ===
+// Chat completion đi qua Vercel AI SDK (streamText / generateText);
+// danh sách model vẫn gọi trực tiếp endpoint /models.
 
-import { mapStreamError } from "./stream";
+import { generateText, streamText, type LanguageModelUsage } from "ai";
+import { classifyAiError, mapStreamError } from "./stream";
+import { createLanguageModel } from "./model";
+import { fetchWithTimeout, resolveRequestHeaders } from "./http";
 import type { AiMessage } from "./types";
-import { readStreamDebugEvent } from "../devtools/stream";
 import type { TokenUsage } from "../devtools/types";
 import { TIMEOUTS } from "../../constants";
 
-// Thời gian timeout mặc định cho mọi request AI: 20 giây
-const REQUEST_TIMEOUT = TIMEOUTS.AI_REQUEST;
+// Thời gian chờ token đầu tiên, tính từ lúc nhận được response headers
 const FIRST_TOKEN_TIMEOUT = TIMEOUTS.AI_FIRST_TOKEN;
 
 // === KIỂU DỮ LIỆU RESPONSE TỪ PROVIDER (OpenAI-style) ===
-// Định nghĩa tường minh thay vì `any` để TypeScript kiểm soát được cấu trúc body.
 type ProviderErrorPayload = {
   error?: { message?: string };
-};
-
-// Body của chat completion không stream (fetchCompletion / testConnection)
-type CompletionResponseBody = ProviderErrorPayload & {
-  choices?: Array<{ message?: { content?: unknown } }>;
-};
-
-// Một chunk SSE trong stream chat completion
-type ChatCompletionChunk = {
-  choices?: Array<{
-    delta?: { content?: unknown };
-    finish_reason?: unknown;
-  }>;
 };
 
 // Body của endpoint /models
@@ -36,121 +25,15 @@ type ModelsResponseBody = ProviderErrorPayload & {
 
 export type ModelEntry = { id: string; label: string };
 
-// Tạo headers HTTP cho request AI
-// - Nếu có API key: thêm header Authorization Bearer
-// - Nếu includeJson: thêm Content-Type application/json
-// - Nếu có extraHeaders: merge vào headers
-function createHeaders(
-  apiKey?: string,
-  includeJson = false,
-  extraHeaders?: Record<string, string>,
-): Record<string, string> {
-  const headers: Record<string, string> = includeJson
-    ? { "Content-Type": "application/json" }
-    : {};
-  const trimmed = apiKey?.trim();
-  if (trimmed) headers.Authorization = `Bearer ${trimmed}`;
-  if (extraHeaders) {
-    Object.assign(headers, extraHeaders);
-  }
-  return headers;
-}
-
-// Bổ sung helper resolve request headers để tự động thêm x-opencode-session nếu là OpenCode endpoint
-function resolveRequestHeaders(options: {
-  baseUrl: string;
-  apiKey?: string;
-  includeJson?: boolean;
+// Cấu hình chung cho một request chat completion
+type CompletionRequest = {
+  baseUrl: string; // URL endpoint chat completions
+  apiKey?: string; // API key (nếu có)
+  model: string; // tên model
+  extraBodyParams?: Record<string, unknown>; // param thô merge vào body (thinking, stream_options...)
   headers?: Record<string, string>;
   sessionId?: string;
-}): Record<string, string> {
-  const extraHeaders: Record<string, string> = { ...(options.headers ?? {}) };
-
-  // Tự động đảm bảo x-opencode-session cho OpenCode
-  const isOpenCode = options.baseUrl.toLowerCase().includes("opencode.ai");
-  if (options.sessionId && !extraHeaders["x-opencode-session"]) {
-    extraHeaders["x-opencode-session"] = options.sessionId;
-  } else if (isOpenCode && !extraHeaders["x-opencode-session"]) {
-    extraHeaders["x-opencode-session"] = crypto.randomUUID();
-  }
-
-  return createHeaders(
-    options.apiKey,
-    options.includeJson ?? false,
-    extraHeaders,
-  );
-}
-
-
-// Tạo AbortSignal với timeout
-// Trả về signal và hàm clear để dọn dẹp timer
-function createTimeoutSignal(timeoutMs: number): {
-  signal: AbortSignal;
-  clear: () => void;
-} {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () =>
-      controller.abort(new DOMException("Request timed out", "TimeoutError")),
-    timeoutMs,
-  );
-  const clear = () => clearTimeout(timer);
-  return { signal: controller.signal, clear };
-}
-
-// fetch() tích hợp sẵn timeout
-// Kết hợp signal từ caller (nếu có) với signal timeout
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit & { timeout?: number },
-): Promise<Response> {
-  const timeout = options.timeout ?? REQUEST_TIMEOUT;
-  const { signal: timeoutSignal, clear: clearTimer } =
-    createTimeoutSignal(timeout);
-  const combined = options.signal
-    ? createCombinedAbortSignal(options.signal, timeoutSignal)
-    : { signal: timeoutSignal, cleanup: () => {} };
-
-  try {
-    return await fetch(url, { ...options, signal: combined.signal });
-  } finally {
-    clearTimer();
-    combined.cleanup();
-  }
-}
-
-// Kết hợp nhiều AbortSignal thành một signal duy nhất
-// Nếu bất kỳ signal nào bị abort, signal tổng hợp cũng bị abort
-// Trả về cả cleanup function để dọn dẹp event listener
-function createCombinedAbortSignal(...signals: AbortSignal[]): {
-  signal: AbortSignal;
-  cleanup: () => void;
-} {
-  const controller = new AbortController();
-  const handlers: Array<{ signal: AbortSignal; handler: () => void }> = [];
-
-  for (const signal of signals) {
-    if (signal.aborted) {
-      controller.abort(signal.reason);
-      for (const { signal: s, handler: h } of handlers) {
-        s.removeEventListener("abort", h);
-      }
-      return { signal: controller.signal, cleanup: () => {} };
-    }
-    const handler = () => controller.abort(signal.reason);
-    signal.addEventListener("abort", handler, { once: true });
-    handlers.push({ signal, handler });
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      for (const { signal: s, handler: h } of handlers) {
-        s.removeEventListener("abort", h);
-      }
-    },
-  };
-}
+};
 
 // Callbacks cho quá trình stream AI
 type StreamCallbacks = {
@@ -164,335 +47,188 @@ type StreamCallbacks = {
   onError: (message: string) => void; // có lỗi xảy ra
 };
 
+// Gọi callback mà không để lỗi của caller làm hỏng vòng đọc stream
+function safeInvoke(fn: () => void): void {
+  try {
+    fn();
+  } catch {}
+}
+
+// Chuyển usage của AI SDK sang TokenUsage, chỉ giữ số nguyên không âm
+function toTokenUsage(usage: LanguageModelUsage | undefined): TokenUsage | undefined {
+  if (!usage) return undefined;
+  const isValidNumber = (val: unknown): val is number =>
+    typeof val === "number" && Number.isInteger(val) && val >= 0;
+
+  const result: TokenUsage = {};
+  if (isValidNumber(usage.inputTokens)) result.inputTokens = usage.inputTokens;
+  if (isValidNumber(usage.outputTokens)) result.outputTokens = usage.outputTokens;
+  if (isValidNumber(usage.totalTokens)) result.totalTokens = usage.totalTokens;
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 // === STREAM CHAT COMPLETION ===
-// Gửi request chat completions với stream=true, đọc dữ liệu SSE (Server-Sent Events)
-// và gọi callback tương ứng cho từng sự kiện
-export async function streamChatCompletion(input: {
-  baseUrl: string; // URL endpoint chat completions
-  apiKey?: string; // API key (nếu có)
-  model: string; // tên model
+// Gửi request chat completions với stream=true qua AI SDK
+// và gọi callback tương ứng cho từng part của fullStream
+export async function streamChatCompletion(input: CompletionRequest & {
   messages: AiMessage[]; // lịch sử hội thoại
   signal?: AbortSignal; // signal để hủy request từ bên ngoài
-  extraBodyParams?: Record<string, unknown>;
-  headers?: Record<string, string>;
-  sessionId?: string;
   callbacks: StreamCallbacks;
 }): Promise<void> {
-  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-  let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
-  let isWatchdogTimeout = false;
+  const { callbacks } = input;
   let hasReceivedFirstToken = false;
 
   function markFirstActivity() {
     if (hasReceivedFirstToken) return;
     hasReceivedFirstToken = true;
-    clearTimeout(watchdogTimer);
-    try {
-      input.callbacks.onFirstToken?.();
-    } catch {}
+    safeInvoke(() => callbacks.onFirstToken?.());
   }
 
   try {
-    // Gửi POST request với timeout (fetchWithTimeout tự combine signal)
-    // input.signal (từ port disconnect) chỉ ảnh hưởng đến fetch, không ảnh hưởng đến reader
-    const response = await fetchWithTimeout(input.baseUrl, {
-      method: "POST",
-      signal: input.signal,
-      headers: resolveRequestHeaders({
-        baseUrl: input.baseUrl,
-        apiKey: input.apiKey,
-        includeJson: true,
-        headers: input.headers,
-        sessionId: input.sessionId,
-      }),
-      body: JSON.stringify({
-        model: input.model,
-        messages: input.messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-        stream: true, // Bật chế độ streaming SSE
-        ...input.extraBodyParams,
-      }),
+    const result = streamText({
+      model: createLanguageModel(input),
+      messages: input.messages,
+      allowSystemInMessages: true, // prompt builders đặt system message trong mảng messages
+      abortSignal: input.signal,
+      maxRetries: 0, // không retry: báo lỗi ngay, tránh bị tính phí lặp
+      timeout: { firstChunkMs: FIRST_TOKEN_TIMEOUT },
+      onError: () => {}, // lỗi được xử lý qua part "error" bên dưới
     });
 
-    // Xử lý lỗi HTTP (status không phải 2xx)
-    if (!response.ok) {
-      let errorMessage = `Request failed with HTTP ${response.status}.`;
-      try {
-        // Thử parse body lỗi để lấy message chi tiết từ provider
-        const errorBody = await response.text();
-        const parsed = JSON.parse(errorBody) as ProviderErrorPayload | null;
-        if (parsed?.error?.message) {
-          errorMessage = parsed.error.message;
+    for await (const part of result.fullStream) {
+      switch (part.type) {
+        // Provider đã trả response 2xx, bắt đầu đọc stream
+        case "start-step":
+          safeInvoke(() => callbacks.onConnecting?.());
+          break;
+
+        case "reasoning-delta":
+          if (part.text) {
+            markFirstActivity();
+            safeInvoke(() => callbacks.onReasoningDelta?.(part.text));
+          }
+          break;
+
+        case "text-delta":
+          if (part.text) {
+            markFirstActivity();
+            safeInvoke(() => callbacks.onDelta(part.text));
+          }
+          break;
+
+        case "finish": {
+          const usage = toTokenUsage(part.totalUsage);
+          if (usage) safeInvoke(() => callbacks.onUsage?.(usage));
+          // rawFinishReason giữ nguyên giá trị provider trả về (stop, length, content_filter...)
+          const finishReason = part.rawFinishReason;
+          if (finishReason) safeInvoke(() => callbacks.onFinishReason?.(finishReason));
+          break;
         }
-      } catch {}
-      try {
-        input.callbacks.onError(errorMessage);
-      } catch {}
-      return;
-    }
 
-    // Kiểm tra response body có tồn tại không
-    if (!response.body) {
-      try {
-        input.callbacks.onError(
-          "No response body received from the AI provider.",
-        );
-      } catch {}
-      return;
-    }
-
-    // Thông báo đã kết nối thành công đến provider
-    try {
-      input.callbacks.onConnecting?.();
-    } catch {}
-
-    // === ĐỌC STREAM SSE (Server-Sent Events) ===
-    reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = ""; // Buffer cho các dòng SSE chưa hoàn chỉnh
-
-    // Watchdog: hủy reader nếu không nhận được token đầu tiên trong FIRST_TOKEN_TIMEOUT
-    // Dùng reader.cancel() thay vì AbortSignal vì AbortSignal không ảnh hưởng đến reader.read()
-    watchdogTimer = setTimeout(() => {
-      isWatchdogTimeout = true;
-      reader?.cancel().catch(() => {});
-    }, FIRST_TOKEN_TIMEOUT);
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      // Kiểm tra nếu bị hủy từ bên ngoài (port disconnect / cancel button)
-      // input.signal.aborted được set bởi controller.abort() trong background.ts
-      if (input.signal?.aborted && !isWatchdogTimeout) {
-        reader.cancel().catch(() => {});
-        return; // AbortError — không cần thông báo
-      }
-
-      // Giải mã chunk byte thành text, stream: true giữ lại ký tự chưa hoàn chỉnh
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? ""; // Dòng cuối có thể chưa hoàn chỉnh, giữ lại
-
-      // Xử lý từng dòng SSE
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-
-        // SSE: mỗi sự kiện bắt đầu bằng "data: "
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice("data: ".length);
-
-        // Tín hiệu kết thúc stream
-        if (data === "[DONE]") {
-          clearTimeout(watchdogTimer);
-          try {
-            input.callbacks.onDone();
-          } catch {}
+        case "error": {
+          const info = classifyAiError(part.error);
+          // Chunk lỗi định dạng giữa stream — bỏ qua và đọc tiếp như parser SSE cũ
+          if (info.kind === "invalid-json" || info.kind === "invalid-format") break;
+          const message =
+            info.kind === "http"
+              ? info.providerMessage ?? `Request failed with HTTP ${info.status}.`
+              : info.kind === "network"
+                ? "Network error. Check your internet connection."
+                : mapStreamError(part.error);
+          if (message) {
+            safeInvoke(() => callbacks.onError(message));
+          } else {
+            safeInvoke(() => callbacks.onDone());
+          }
           return;
         }
 
-        // Parse JSON và extract nội dung delta
-        try {
-          const parsed = JSON.parse(data) as ChatCompletionChunk;
-          
-          try {
-            const debugEvent = readStreamDebugEvent(parsed);
-            if (debugEvent.reasoningDelta) {
-              markFirstActivity();
-              input.callbacks.onReasoningDelta?.(debugEvent.reasoningDelta);
-            }
-            if (debugEvent.usage) {
-              input.callbacks.onUsage?.(debugEvent.usage);
-            }
-            if (debugEvent.finishReason) {
-              input.callbacks.onFinishReason?.(debugEvent.finishReason);
-            }
-          } catch {}
-
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (typeof delta === "string" && delta) {
-            markFirstActivity();
-            try {
-              input.callbacks.onDelta(delta);
-            } catch {}
-          }
-        } catch {
-          // Bỏ qua các dòng JSON không parse được
-        }
+        case "abort":
+          // Người dùng hủy (port disconnect) — không cần thông báo
+          if (input.signal?.aborted) return;
+          // Ngược lại là hết thời gian chờ token đầu tiên
+          safeInvoke(() =>
+            callbacks.onError(
+              `Provider is too slow. No response after ${FIRST_TOKEN_TIMEOUT / 1000} seconds.`,
+            ),
+          );
+          return;
       }
     }
 
-    clearTimeout(watchdogTimer);
-
-    // Watchdog timeout — báo lỗi (reader đã bị cancel, stream kết thúc)
-    if (isWatchdogTimeout) {
-      try {
-        input.callbacks.onError(
-          "Provider is too slow. No response after 30 seconds.",
-        );
-      } catch {}
-      return;
-    }
-
-    // Stream kết thúc tự nhiên (không có [DONE])
-    try {
-      input.callbacks.onDone();
-    } catch {}
+    safeInvoke(() => callbacks.onDone());
   } catch (error) {
-    clearTimeout(watchdogTimer);
-
-    // Nếu watchdog đã xử lý lỗi, không report lỗi thứ cấp
-    if (isWatchdogTimeout) return;
-
     // Xử lý lỗi: ánh xạ sang thông báo thân thiện
     const mapped = mapStreamError(error);
     if (mapped) {
-      try {
-        input.callbacks.onError(mapped);
-      } catch {}
+      safeInvoke(() => callbacks.onError(mapped));
     } else {
       // Lỗi bị hủy (AbortError) — không cần thông báo
-      try {
-        input.callbacks.onDone();
-      } catch {}
+      safeInvoke(() => callbacks.onDone());
     }
   }
 }
 
 // === NON-STREAM COMPLETION (for inline definitions) ===
-export async function fetchCompletion(input: {
-  baseUrl: string;
-  apiKey?: string;
-  model: string;
+export async function fetchCompletion(input: CompletionRequest & {
   messages: AiMessage[];
   signal?: AbortSignal;
-  extraBodyParams?: Record<string, unknown>;
-  headers?: Record<string, string>;
-  sessionId?: string;
 }): Promise<{ ok: true; content: string } | { ok: false; error: string }> {
   try {
-    const response = await fetchWithTimeout(input.baseUrl, {
-      method: "POST",
-      signal: input.signal,
-      headers: resolveRequestHeaders({
-        baseUrl: input.baseUrl,
-        apiKey: input.apiKey,
-        includeJson: true,
-        headers: input.headers,
-        sessionId: input.sessionId,
-      }),
-      body: JSON.stringify({
-        model: input.model,
-        messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
-        stream: false,
-        ...input.extraBodyParams,
-      }),
+    const result = await generateText({
+      model: createLanguageModel(input),
+      messages: input.messages,
+      allowSystemInMessages: true,
+      abortSignal: input.signal,
+      maxRetries: 0,
     });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}.`;
-      try {
-        const text = await response.text();
-        const parsed = JSON.parse(text) as ProviderErrorPayload | null;
-        if (parsed?.error?.message) errorMessage = parsed.error.message;
-      } catch {}
-      return { ok: false, error: errorMessage };
-    }
-
-    let body: CompletionResponseBody;
-    try {
-      body = (await response.json()) as CompletionResponseBody;
-    } catch {
-      return { ok: false, error: "Provider returned a non-JSON response." };
-    }
-
-    const content = body?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") {
-      return { ok: false, error: "Provider returned an unexpected response format." };
-    }
-    return { ok: true, content };
+    return { ok: true, content: result.text };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Unknown error.";
-    return { ok: false, error: msg };
+    const info = classifyAiError(error);
+    switch (info.kind) {
+      case "http":
+        return { ok: false, error: info.providerMessage ?? `HTTP ${info.status}.` };
+      case "invalid-json":
+        return { ok: false, error: "Provider returned a non-JSON response." };
+      case "invalid-format":
+        return { ok: false, error: "Provider returned an unexpected response format." };
+      default:
+        return { ok: false, error: error instanceof Error ? error.message : "Unknown error." };
+    }
   }
 }
 
 // === KIỂM TRA KẾT NỐI ===
 // Gửi một request đơn giản (không stream) để kiểm tra provider có hoạt động không
-export async function testConnection(input: {
-  baseUrl: string;
-  apiKey?: string;
-  model: string;
-  extraBodyParams?: Record<string, unknown>;
-  headers?: Record<string, string>;
-  sessionId?: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function testConnection(
+  input: CompletionRequest,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const response = await fetchWithTimeout(input.baseUrl, {
-      method: "POST",
-      headers: resolveRequestHeaders({
-        baseUrl: input.baseUrl,
-        apiKey: input.apiKey,
-        includeJson: true,
-        headers: input.headers,
-        sessionId: input.sessionId,
-      }),
-      body: JSON.stringify({
-        model: input.model,
-        messages: [{ role: "user", content: "Hi" }],
-        max_tokens: 10,
-        stream: false,
-        ...input.extraBodyParams,
-      }),
+    await generateText({
+      model: createLanguageModel(input),
+      prompt: "Hi",
+      maxOutputTokens: 10,
+      maxRetries: 0,
     });
-
-    // Xử lý lỗi HTTP
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}.`;
-      try {
-        const text = await response.text();
-        try {
-          const parsed = JSON.parse(text) as ProviderErrorPayload | null;
-          if (parsed?.error?.message) errorMessage = parsed.error.message;
-        } catch {
-          // Nếu response không phải JSON, dùng text gốc (nếu ngắn)
-          if (text && text.length < 200) errorMessage = text;
-        }
-      } catch {}
-      return { ok: false, error: errorMessage };
-    }
-
-    // Parse JSON response
-    let body: CompletionResponseBody;
-    try {
-      body = (await response.json()) as CompletionResponseBody;
-    } catch {
-      return {
-        ok: false,
-        error: "Provider returned a non-JSON response. Check the URL.",
-      };
-    }
-
-    // Kiểm tra cấu trúc response có đúng định dạng OpenAI-style không
-    if (!body?.choices?.[0]?.message) {
-      return {
-        ok: false,
-        error: "Provider returned an unexpected response format.",
-      };
-    }
-
     return { ok: true };
   } catch (error) {
-    // Phân loại lỗi mạng vs lỗi khác
-    const msg =
-      error instanceof TypeError
-        ? "Could not reach the provider. Check the URL."
-        : error instanceof Error
-          ? error.message
-          : "Unknown error.";
-    return { ok: false, error: msg };
+    const info = classifyAiError(error);
+    switch (info.kind) {
+      case "http": {
+        // Nếu response không phải JSON, dùng text gốc (nếu ngắn)
+        const body = info.responseBody;
+        const fallback = body && body.length < 200 ? body : `HTTP ${info.status}.`;
+        return { ok: false, error: info.providerMessage ?? fallback };
+      }
+      case "network":
+        return { ok: false, error: "Could not reach the provider. Check the URL." };
+      case "invalid-json":
+        return { ok: false, error: "Provider returned a non-JSON response. Check the URL." };
+      case "invalid-format":
+        return { ok: false, error: "Provider returned an unexpected response format." };
+      default:
+        return { ok: false, error: error instanceof Error ? error.message : "Unknown error." };
+    }
   }
 }
 

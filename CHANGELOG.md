@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- AI client chuyển sang Vercel AI SDK v7 (`ai` + `@ai-sdk/openai-compatible`): `streamChatCompletion` dùng `streamText`, `fetchCompletion` / `testConnection` dùng `generateText`. Public API của `src/core/ai/client.ts` giữ nguyên.
+- Tách helper HTTP sang `src/core/ai/http.ts`, thêm `src/core/ai/model.ts` (`createLanguageModel`) và `classifyAiError` trong `src/core/ai/stream.ts`.
+
+### Removed
+- Parser SSE tự viết trong `client.ts` và `src/core/devtools/stream.ts` (`readStreamDebugEvent`) — reasoning, usage, finish reason giờ lấy từ AI SDK.
+
 ## [0.4.0] - 2026-09-07
 
 ### Added
